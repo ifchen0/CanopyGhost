@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <CG_Alpha>透視不透明度：{0}</CG_Alpha>
+  <CG_Alpha_Desc>樹冠下的角色透出來的程度。0% 為關閉。</CG_Alpha_Desc>
+  <CG_IncludeAnimals>動物與機械體也顯示</CG_IncludeAnimals>
+  <CG_IncludeAnimals_Desc>關閉時只有人形角色在樹下會透出。</CG_IncludeAnimals_Desc>
+</LanguageData>

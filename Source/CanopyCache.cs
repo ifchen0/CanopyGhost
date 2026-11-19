@@ -1,0 +1,86 @@
+using System.Collections.Generic;
+using RimWorld;
+using UnityEngine;
+using Verse;
+
+namespace CanopyGhost
+{
+    /// <summary>
+    /// Caches per pawn whether a tree drawn above pawns overlaps the pawn's cell.
+    /// Rechecked when the pawn changes cell or after a short interval (trees grow or get cut).
+    /// </summary>
+    public static class CanopyCache
+    {
+        private struct Entry
+        {
+            public IntVec3 cell;
+            public int frame;
+            public bool covered;
+        }
+
+        private const int RefreshFrames = 120;
+        private const int ScanX = 4;
+        private const int ScanBelow = 6;
+        private const int ScanAbove = 1;
+        // Tree textures have empty margins; shrink the quad so bare corners do not count.
+        private const float QuadShrink = 0.8f;
+        private const float PawnHalfWidth = 0.35f;
+        private const float PawnHalfHeight = 0.45f;
+        private const float PawnCenterRaise = 0.2f;
+
+        private static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
+
+        public static bool IsUnderCanopy(Pawn pawn)
+        {
+            IntVec3 cell = pawn.Position;
+            int frame = Time.frameCount;
+            if (entries.TryGetValue(pawn.thingIDNumber, out var e) && e.cell == cell && frame - e.frame < RefreshFrames)
+                return e.covered;
+            if (entries.Count > 4096)
+                entries.Clear();
+            bool covered = Scan(pawn.Map, cell);
+            entries[pawn.thingIDNumber] = new Entry { cell = cell, frame = frame, covered = covered };
+            return covered;
+        }
+
+        private static bool Scan(Map map, IntVec3 cell)
+        {
+            float pMinX = cell.x + 0.5f - PawnHalfWidth;
+            float pMaxX = cell.x + 0.5f + PawnHalfWidth;
+            float pCenterZ = cell.z + 0.5f + PawnCenterRaise;
+            float pMinZ = pCenterZ - PawnHalfHeight;
+            float pMaxZ = pCenterZ + PawnHalfHeight;
+
+            for (int z = cell.z - ScanBelow; z <= cell.z + ScanAbove; z++)
+            {
+                for (int x = cell.x - ScanX; x <= cell.x + ScanX; x++)
+                {
+                    var c = new IntVec3(x, 0, z);
+                    if (!c.InBounds(map))
+                        continue;
+                    var things = map.thingGrid.ThingsListAtFast(c);
+                    for (int i = 0; i < things.Count; i++)
+                    {
+                        if (!(things[i] is Plant plant) || !IsCanopyTree(plant))
+                            continue;
+                        // Mirrors Plant.Print for single-mesh plants: bottom edge sits on the cell.
+                        float visual = plant.def.plant.visualSizeRange.LerpThroughRange(plant.Growth);
+                        float half = plant.def.graphicData.drawSize.x * visual * 0.5f * QuadShrink;
+                        float cx = x + 0.5f;
+                        float cz = Mathf.Max(z + 0.5f, z + visual * 0.5f);
+                        if (cx - half < pMaxX && cx + half > pMinX && cz - half < pMaxZ && cz + half > pMinZ)
+                            return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static bool IsCanopyTree(Plant plant)
+        {
+            var def = plant.def;
+            return def.plant != null && def.plant.IsTree && def.plant.maxMeshCount == 1
+                && def.graphicData != null && def.altitudeLayer > AltitudeLayer.Pawn;
+        }
+    }
+}

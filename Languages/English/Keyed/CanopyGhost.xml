@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LanguageData>
+  <CG_Alpha>Ghost opacity: {0}</CG_Alpha>
+  <CG_Alpha_Desc>How visible pawns are through tree canopies. 0% turns the ghost off.</CG_Alpha_Desc>
+  <CG_IncludeAnimals>Show animals and mechanoids too</CG_IncludeAnimals>
+  <CG_IncludeAnimals_Desc>Off: only humanlike pawns get a ghost under trees.</CG_IncludeAnimals_Desc>
+</LanguageData>
