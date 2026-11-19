@@ -61,13 +61,9 @@ namespace CanopyGhost
                     var things = map.thingGrid.ThingsListAtFast(c);
                     for (int i = 0; i < things.Count; i++)
                     {
-                        if (!(things[i] is Plant plant) || !IsCanopyTree(plant))
+                        if (!(things[i] is Plant plant) || !IsCanopyTree(plant.def))
                             continue;
-                        // Mirrors Plant.Print for single-mesh plants: bottom edge sits on the cell.
-                        float visual = plant.def.plant.visualSizeRange.LerpThroughRange(plant.Growth);
-                        float half = plant.def.graphicData.drawSize.x * visual * 0.5f * QuadShrink;
-                        float cx = x + 0.5f;
-                        float cz = Mathf.Max(z + 0.5f, z + visual * 0.5f);
+                        TreeQuad(plant, out float cx, out float cz, out float half);
                         if (cx - half < pMaxX && cx + half > pMinX && cz - half < pMaxZ && cz + half > pMinZ)
                             return true;
                     }
@@ -76,9 +72,22 @@ namespace CanopyGhost
             return false;
         }
 
-        private static bool IsCanopyTree(Plant plant)
+        /// <summary>
+        /// Visible canopy square of a tree, mirroring Plant.Print for single-mesh plants
+        /// (bottom edge sits on the tree's cell), shrunk for the empty texture margins.
+        /// </summary>
+        public static void TreeQuad(Plant plant, out float cx, out float cz, out float half)
         {
-            var def = plant.def;
+            IntVec3 pos = plant.Position;
+            float visual = plant.def.plant.visualSizeRange.LerpThroughRange(plant.Growth);
+            half = plant.def.graphicData.drawSize.x * visual * 0.5f * QuadShrink;
+            cx = pos.x + 0.5f;
+            cz = Mathf.Max(pos.z + 0.5f, pos.z + visual * 0.5f);
+        }
+
+        /// <summary>Trees that some mod (e.g. Better Trees) draws above pawns.</summary>
+        public static bool IsCanopyTree(ThingDef def)
+        {
             return def.plant != null && def.plant.IsTree && def.plant.maxMeshCount == 1
                 && def.graphicData != null && def.altitudeLayer > AltitudeLayer.Pawn;
         }
