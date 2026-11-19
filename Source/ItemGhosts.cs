@@ -1,3 +1,4 @@
+using HarmonyLib;
 using System.Collections.Generic;
 using System.Linq;
 using RimWorld;
@@ -47,7 +48,9 @@ namespace CanopyGhost
             float y = Altitude;
             foreach (IntVec3 c in view)
             {
-                if (!covered[indices.CellToIndex(c)] || map.fogGrid.IsFogged(c))
+                int index = indices.CellToIndex(c);
+                // Only loose items on the ground; items on shelves, racks and other buildings are skipped.
+                if (!covered[index] || map.fogGrid.IsFogged(c) || map.edificeGrid[index] != null)
                     continue;
                 List<Thing> things = map.thingGrid.ThingsListAtFast(c);
                 for (int i = 0; i < things.Count; i++)
@@ -65,6 +68,16 @@ namespace CanopyGhost
             Graphic g = t.Graphic;
             if (g == null)
                 return;
+            float extraRotation = 0f;
+            // Weapons and other items with onGroundRandomRotateAngle: the wrapper only adds an angle
+            // and prints its inner graphic, so use the inner graphic's geometry plus that angle.
+            if (g is Graphic_RandomRotated rr)
+            {
+                extraRotation = RandomRotation(t, RandomMaxAngle(rr));
+                g = rr.SubGraphic;
+                if (g == null)
+                    return;
+            }
             Rot4 rot = t.Rotation;
             Vector2 size;
             bool flip;
@@ -81,8 +94,9 @@ namespace CanopyGhost
             if (t.MultipleItemsPerCellDrawn())
                 size *= 0.8f;
             Quaternion q = g.QuatFromRot(rot);
-            if (flip && g.data != null)
-                q *= Quaternion.AngleAxis(g.data.flipExtraRotation, Vector3.up);
+            float angle = extraRotation + (flip && g.data != null ? g.data.flipExtraRotation : 0f);
+            if (angle != 0f)
+                q *= Quaternion.AngleAxis(angle, Vector3.up);
             Material src = g.MatAt(rot, t);
             Texture tex = src?.mainTexture;
             if (tex == null)
@@ -93,6 +107,16 @@ namespace CanopyGhost
             Vector3 pos = t.TrueCenter() + g.DrawOffset(rot);
             pos.y = y;
             Graphics.DrawMesh(MeshPool.GridPlane(size, flip), pos, q, mat, 0);
+        }
+
+        private static readonly AccessTools.FieldRef<Graphic_RandomRotated, float> RandomMaxAngle =
+            AccessTools.FieldRefAccess<Graphic_RandomRotated, float>("maxAngle");
+
+        // Mirrors Graphic_RandomRotated.Print for items on the ground (its rack angle needs a building on
+        // the cell, and those cells are skipped): a per-thing angle from its id.
+        private static float RandomRotation(Thing t, float maxAngle)
+        {
+            return -maxAngle + (float)(t.thingIDNumber * 542) % (maxAngle * 2f);
         }
 
         private void Rebuild()
