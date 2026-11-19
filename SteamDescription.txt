@@ -1,0 +1,24 @@
+When trees are drawn over pawns, for example with [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3539609975]Better Trees[/url]' "Render trees over colonists", a dense forest hides everyone in it. This mod shows pawns and items under a canopy as a translucent ghost through the leaves, so you can still see who is where.
+
+[h2]What it does[/h2][list]
+[*]Pawns under a canopy show through it (40% by default). Parts that are not covered look the same as before.
+[*]Items lying under trees show through too.
+[*]The trees themselves are left alone, so nothing fades in and out as pawns walk around.
+[/list]
+
+[h2]Settings[/h2][list]
+[*]Ghost opacity; 0% turns it off.
+[*]Animals and mechanoids on or off.
+[*]Items on or off.
+[*]Hide Better Trees' cursor-transparency button (off by default). Its hotkey keeps working.
+[/list]
+
+[h2]Notes[/h2][list]
+[*]Only trees drawn above pawns count; with vanilla tree layering this mod does nothing.
+[*]Pawns in an animation (for example Melee Animation duels) and corpses get no ghost.
+[*]In a 73-pawn battle inside a dense forest the ghosts took about 1 ms per frame zoomed in and less zoomed out; see the chart in the gallery.
+[*]Tested on RimWorld 1.7.
+[*]Safe to add to or remove from an existing save.
+[/list]
+[hr][/hr]
+This mod was developed with the help of AI coding tools (Claude Code). Full source code is included in the Source folder and on [url=https://github.com/ifchen0/CanopyGhost]GitHub[/url] for review.
