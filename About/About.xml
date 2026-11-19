@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
-  <name>Canopy Ghost: See Pawns and Items Under Trees</name>
+  <name>Canopy Ghost for Better Trees</name>
   <author>ifchen0</author>
   <packageId>ifchen0.canopyghost</packageId>
   <url>https://github.com/ifchen0/CanopyGhost</url>
   <supportedVersions><li>1.6</li><li>1.7</li></supportedVersions>
   <description>Warning: this mod was written with AI coding tools (Claude Code).
 
-When trees are drawn over pawns (for example with Better Trees' "Render trees over colonists"), pawns and items under a canopy are shown as a translucent ghost through the leaves. Trees stay as they are; nothing switches on or off.
+An add-on for Better Trees. With its "Render trees over colonists" option on, a dense forest hides everyone in it; this mod shows pawns and items under a canopy as a translucent ghost through the leaves. Trees stay as they are; nothing switches on or off.
 
 Notes
-- Only trees drawn above pawns count; with vanilla tree layering this mod does nothing.
+- Works with any mod that draws trees over pawns; with vanilla tree layering it does nothing. Better Trees is not required.
 - Opacity, animals and items can be set in the mod settings.
 - Optional: hide Better Trees' cursor-transparency button (its hotkey keeps working).
 - Safe to add to or remove from an existing save.</description>
