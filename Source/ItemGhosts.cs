@@ -12,6 +12,11 @@ namespace CanopyGhost
     /// Ghosts for items lying under canopies. Items are baked into the map mesh, so there is no per-frame draw
     /// to hook: this component keeps a grid of covered cells (rebuilt from the canopy trees every few seconds)
     /// and each frame draws a translucent copy of the items on covered cells in view, above the trees.
+    /// Supported: items printed by the plain Thing/ThingWithComps.Print with a Graphic printed by the base
+    /// Graphic.Print (single, multi, stack count, random), plus the random ground angle of weapons.
+    /// Not supported, no ghost: items on shelves or other buildings, realtime-drawn items, item classes or
+    /// graphics with their own Print (minified furniture in a crate, modded items drawn their own way).
+    /// Corpses are drawn by GhostDrawer instead.
     /// </summary>
     public class ItemGhosts : MapComponent
     {
@@ -56,7 +61,7 @@ namespace CanopyGhost
                 for (int i = 0; i < things.Count; i++)
                 {
                     Thing t = things[i];
-                    if (t.def.category == ThingCategory.Item && !(t is Corpse) && t.def.drawerType != DrawerType.None)
+                    if (t.def.category == ThingCategory.Item && StandardPrintedItem(t.def))
                         DrawGhost(t, y, settings.alpha);
                 }
             }
@@ -78,6 +83,8 @@ namespace CanopyGhost
                 if (g == null)
                     return;
             }
+            if (!StandardGraphic(g.GetType()))
+                return;
             Rot4 rot = t.Rotation;
             Vector2 size;
             bool flip;
@@ -117,6 +124,37 @@ namespace CanopyGhost
         private static float RandomRotation(Thing t, float maxAngle)
         {
             return -maxAngle + (float)(t.thingIDNumber * 542) % (maxAngle * 2f);
+        }
+
+        private static readonly Dictionary<ThingDef, bool> standardItems = new Dictionary<ThingDef, bool>();
+        private static readonly Dictionary<System.Type, bool> standardGraphics = new Dictionary<System.Type, bool>();
+
+        // Only items baked into the map mesh by the plain Thing/ThingWithComps.Print, whose geometry DrawGhost
+        // reproduces. Skips realtime-drawn items (corpses, ...) and classes with their own Print
+        // (minified furniture in a crate, modded items), rather than drawing a ghost that does not match.
+        private static bool StandardPrintedItem(ThingDef def)
+        {
+            if (!standardItems.TryGetValue(def, out bool ok))
+            {
+                System.Type declaring = AccessTools.Method(def.thingClass, nameof(Thing.Print), new[] { typeof(SectionLayer) })?.DeclaringType;
+                ok = def.drawerType == DrawerType.MapMeshOnly
+                     && (declaring == typeof(Thing) || declaring == typeof(ThingWithComps));
+                standardItems[def] = ok;
+            }
+            return ok;
+        }
+
+        // Graphics printed by the base Graphic.Print (Graphic_Random only picks a sub-graphic for the thing).
+        private static bool StandardGraphic(System.Type type)
+        {
+            if (!standardGraphics.TryGetValue(type, out bool ok))
+            {
+                System.Type declaring = AccessTools.Method(type, nameof(Graphic.Print),
+                    new[] { typeof(SectionLayer), typeof(Thing), typeof(float) })?.DeclaringType;
+                ok = declaring == typeof(Graphic) || declaring == typeof(Graphic_Random);
+                standardGraphics[type] = ok;
+            }
+            return ok;
         }
 
         private void Rebuild()

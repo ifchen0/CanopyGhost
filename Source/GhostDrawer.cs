@@ -11,6 +11,11 @@ namespace CanopyGhost
     /// <summary>
     /// Draws a translucent copy of a pawn above the tree layer while the pawn stands under a canopy,
     /// so the covered part shows through and the visible part looks unchanged.
+    /// Supported: humanlikes (from vanilla's pawn atlas, at any zoom), animals and mechanoids (body graphic
+    /// only), and corpses on the ground (with the item setting).
+    /// Not supported, no ghost: humanlikes in states where vanilla does not use the atlas (animation,
+    /// crawling, swimming, carrying or being carried, hediff materials, dessicated corpses), corpses on
+    /// shelves or other buildings. Extra render nodes of animals and mechanoids are not drawn.
     /// </summary>
     [HarmonyPatch(typeof(PawnRenderer), nameof(PawnRenderer.RenderPawnAt))]
     public static class GhostDrawer
@@ -57,24 +62,40 @@ namespace CanopyGhost
                 return;
             var settings = CanopyGhostMod.Settings;
             Pawn pawn = PawnRef(__instance);
-            if (pawn == null || !pawn.Spawned || pawn.Map != Find.CurrentMap)
+            if (pawn == null)
+                return;
+            // A corpse draws its inner pawn, which is not spawned itself; the corpse stands for it on the map.
+            Thing anchor = pawn;
+            if (!pawn.Spawned)
+            {
+                if (!(pawn.ParentHolder is Corpse corpse) || !corpse.Spawned || !settings.itemGhosts)
+                    return;
+                // Like items: only corpses on the ground, not on shelves or other buildings.
+                if (corpse.Position.GetEdifice(corpse.Map) != null)
+                    return;
+                anchor = corpse;
+            }
+            else if (!pawn.RaceProps.Humanlike && !settings.includeAnimals)
+                return;
+            if (anchor.Map != Find.CurrentMap)
                 return;
             bool humanlike = pawn.RaceProps.Humanlike;
-            if (!humanlike && !settings.includeAnimals)
-                return;
             bool showBody = __state.showBody;
             Vector3 bodyPos = __state.bodyPos;
             float bodyAngle = __state.bodyAngle;
             Rot4 facing = __state.facing;
-            if (!CanopyCache.IsUnderCanopy(pawn))
+            if (!CanopyCache.IsUnderCanopy(anchor))
                 return;
 
             Mesh mesh;
             Texture texture;
+            Color tint = Color.white;
             if (humanlike)
             {
-                // Animated or swimming pawns do not match their atlas frame, so skip them.
-                if (__instance.renderTree?.currentAnimation != null || pawn.Swimming)
+                // Rendering an atlas frame runs vanilla's cache render on the pawn's render tree. Only do it
+                // where vanilla would use the atlas itself (its useCached test minus the zoom check): in the
+                // other states the frame is stale and the cache render can change how the pawn itself draws.
+                if (!AtlasSafe(__instance, pawn))
                     return;
                 if (!GlobalTextureAtlasManager.TryGetPawnFrameSet(pawn, out var frameSet, out _))
                     return;
@@ -83,19 +104,39 @@ namespace CanopyGhost
             }
             else
             {
+                // Read-only: the body node's current graphic (already the rotting or dessicated one for corpses).
                 Graphic body = __instance.BodyGraphic;
                 if (body == null)
                     return;
                 mesh = body.MeshAt(facing);
-                texture = body.MatAt(facing)?.mainTexture;
+                Material src = body.MatAt(facing);
+                texture = src?.mainTexture;
+                if (src != null)
+                    tint = src.color;
             }
             if (mesh == null || texture == null)
                 return;
 
-            var mat = MaterialPool.MatFrom(new MaterialRequest(texture, ShaderDatabase.Mote, new Color(1f, 1f, 1f, settings.alpha)));
+            tint.a = settings.alpha;
+            var mat = MaterialPool.MatFrom(new MaterialRequest(texture, ShaderDatabase.Mote, tint));
             Vector3 pos = bodyPos;
             pos.y = GhostAltitude;
             Graphics.DrawMesh(mesh, pos, Quaternion.AngleAxis(bodyAngle, Vector3.up), mat, 0);
+        }
+
+        private delegate bool NeedsHediffMaterialFn(PawnRenderer renderer, out PawnRenderFlags flags);
+
+        private static readonly NeedsHediffMaterialFn NeedsHediffMaterial =
+            AccessTools.MethodDelegate<NeedsHediffMaterialFn>(AccessTools.Method(typeof(PawnRenderer), "PawnNeedsHediffMaterial"));
+
+        // Vanilla PawnRenderer.ParallelGetPreRenderResults useCached conditions, without the camera zoom.
+        private static bool AtlasSafe(PawnRenderer renderer, Pawn pawn)
+        {
+            return renderer.CurRotDrawMode != RotDrawMode.Dessicated
+                && !pawn.Crawling && !pawn.Swimming
+                && renderer.renderTree?.currentAnimation == null
+                && pawn.carryTracker?.CarriedThing == null && pawn.CarriedBy == null
+                && !NeedsHediffMaterial(renderer, out _);
         }
 
         // PawnRenderer.results is a private nested struct; read its fields in place without boxing.

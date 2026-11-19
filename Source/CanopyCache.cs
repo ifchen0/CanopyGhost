@@ -6,7 +6,7 @@ using Verse;
 namespace CanopyGhost
 {
     /// <summary>
-    /// Caches per pawn whether a tree drawn above pawns overlaps the pawn's cell.
+    /// Caches per pawn (or corpse) whether a tree drawn above pawns overlaps its cell.
     /// Rechecked when the pawn changes cell or after a short interval (trees grow or get cut).
     /// </summary>
     public static class CanopyCache
@@ -30,16 +30,17 @@ namespace CanopyGhost
 
         private static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
 
-        public static bool IsUnderCanopy(Pawn pawn)
+        /// <param name="anchor">The spawned thing standing for the pawn: the pawn itself, or its corpse.</param>
+        public static bool IsUnderCanopy(Thing anchor)
         {
-            IntVec3 cell = pawn.Position;
+            IntVec3 cell = anchor.Position;
             int frame = Time.frameCount;
-            if (entries.TryGetValue(pawn.thingIDNumber, out var e) && e.cell == cell && frame - e.frame < RefreshFrames)
+            if (entries.TryGetValue(anchor.thingIDNumber, out var e) && e.cell == cell && frame - e.frame < RefreshFrames)
                 return e.covered;
             if (entries.Count > 4096)
                 entries.Clear();
-            bool covered = Scan(pawn.Map, cell);
-            entries[pawn.thingIDNumber] = new Entry { cell = cell, frame = frame, covered = covered };
+            bool covered = Scan(anchor.Map, cell);
+            entries[anchor.thingIDNumber] = new Entry { cell = cell, frame = frame, covered = covered };
             return covered;
         }
 

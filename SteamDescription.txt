@@ -2,20 +2,20 @@ An add-on for [url=https://steamcommunity.com/sharedfiles/filedetails/?id=353960
 
 [h2]What it does[/h2][list]
 [*]Pawns under a canopy show through it (40% by default). Parts that are not covered look the same as before.
-[*]Items lying under trees show through too.
+[*]Items and corpses lying under trees show through too.
 [*]The trees themselves are left alone, so nothing fades in and out as pawns walk around.
 [/list]
 
 [h2]Settings[/h2][list]
 [*]Ghost opacity; 0% turns it off.
 [*]Animals and mechanoids on or off.
-[*]Items on or off.
+[*]Items and corpses on or off.
 [*]Hide Better Trees' cursor-transparency button (off by default). Its hotkey keeps working.
 [/list]
 
 [h2]Notes[/h2][list]
 [*]Works with any mod that draws trees over pawns; with vanilla tree layering it does nothing. Better Trees is not required.
-[*]Pawns in an animation (for example Melee Animation duels) and corpses get no ghost.
+[*]No ghost for: pawns in an animation (for example Melee Animation duels), crawling, carrying or being carried; dried-out human corpses; packed furniture; things on shelves or other buildings; modded items with their own drawing.
 [*]In a 73-pawn battle inside a dense forest the ghosts took about 1 ms per frame zoomed in and less zoomed out; see the chart in the gallery.
 [*]Tested on RimWorld 1.7.
 [*]Safe to add to or remove from an existing save.
