@@ -14,8 +14,8 @@ namespace CanopyGhost
     /// Supported: humanlikes (from vanilla's pawn atlas, at any zoom), animals and mechanoids (body graphic
     /// only), and corpses on the ground (with the item setting).
     /// Not supported, no ghost: humanlikes in states where vanilla does not use the atlas (animation,
-    /// crawling, swimming, carrying or being carried, hediff materials, dessicated corpses), corpses on
-    /// shelves or other buildings. Extra render nodes of animals and mechanoids are not drawn.
+    /// crawling, swimming, carrying or being carried, hediff materials), corpses on shelves or other
+    /// buildings. Extra render nodes of animals and mechanoids are not drawn.
     /// </summary>
     [HarmonyPatch(typeof(PawnRenderer), nameof(PawnRenderer.RenderPawnAt))]
     public static class GhostDrawer
@@ -129,11 +129,12 @@ namespace CanopyGhost
         private static readonly NeedsHediffMaterialFn NeedsHediffMaterial =
             AccessTools.MethodDelegate<NeedsHediffMaterialFn>(AccessTools.Method(typeof(PawnRenderer), "PawnNeedsHediffMaterial"));
 
-        // Vanilla PawnRenderer.ParallelGetPreRenderResults useCached conditions, without the camera zoom.
+        // Vanilla PawnRenderer.ParallelGetPreRenderResults useCached conditions, without the camera zoom and
+        // without its Dessicated test: Corpse.RotStageChanged marks the atlas frame dirty and RenderCache uses
+        // the current rot draw mode, so dried-out corpses get a skeleton frame (checked in game).
         private static bool AtlasSafe(PawnRenderer renderer, Pawn pawn)
         {
-            return renderer.CurRotDrawMode != RotDrawMode.Dessicated
-                && !pawn.Crawling && !pawn.Swimming
+            return !pawn.Crawling && !pawn.Swimming
                 && renderer.renderTree?.currentAnimation == null
                 && pawn.carryTracker?.CarriedThing == null && pawn.CarriedBy == null
                 && !NeedsHediffMaterial(renderer, out _);

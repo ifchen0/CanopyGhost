@@ -46,7 +46,7 @@ namespace CanopyGhost
 
             Slot("human corpse, fresh", c => SpawnCorpse(map, c, PawnKindDefOf.Villager, RotDrawMode.Fresh));
             Slot("human corpse, rotting", c => SpawnCorpse(map, c, PawnKindDefOf.Villager, RotDrawMode.Rotting));
-            Slot("human corpse, dessicated (no ghost)", c => SpawnCorpse(map, c, PawnKindDefOf.Villager, RotDrawMode.Dessicated));
+            Slot("human corpse, dessicated", c => SpawnCorpse(map, c, PawnKindDefOf.Villager, RotDrawMode.Dessicated));
             PawnKindDef animal = DefDatabase<PawnKindDef>.GetNamedSilentFail("Muffalo") ?? PawnKindDefOf.Thrumbo;
             Slot("animal corpse, fresh", c => SpawnCorpse(map, c, animal, RotDrawMode.Fresh));
             Slot("animal corpse, rotting", c => SpawnCorpse(map, c, animal, RotDrawMode.Rotting));
