@@ -15,7 +15,7 @@ An add-on for [url=https://steamcommunity.com/sharedfiles/filedetails/?id=353960
 
 [h2]Notes[/h2][list]
 [*]Works with any mod that draws trees over pawns; with vanilla tree layering it does nothing. Better Trees is not required.
-[*]No ghost for: pawns in an animation (for example Melee Animation duels), crawling, carrying or being carried; packed furniture; things on shelves or other buildings; modded items with their own drawing.
+[*]No ghost for: pawns in an animation (for example Melee Animation duels), crawling, being carried, or swimming with only the head showing; packed furniture; things on shelves or other buildings; modded items with their own drawing.
 [*]In a 73-pawn battle inside a dense forest the ghosts took about 1 ms per frame zoomed in and less zoomed out; see the chart in the gallery.
 [*]Tested on RimWorld 1.7.
 [*]Safe to add to or remove from an existing save.

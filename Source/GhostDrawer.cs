@@ -13,15 +13,18 @@ namespace CanopyGhost
     /// so the covered part shows through and the visible part looks unchanged.
     /// Supported: humanlikes (from vanilla's pawn atlas, at any zoom), animals and mechanoids (body graphic
     /// only), and corpses on the ground (with the item setting).
-    /// Not supported, no ghost: humanlikes in states where vanilla does not use the atlas (animation,
-    /// crawling, swimming, carrying or being carried, hediff materials), corpses on shelves or other
-    /// buildings. Extra render nodes of animals and mechanoids are not drawn.
+    /// Not supported, no ghost: pawns drawn without a body this frame (NoBody, e.g. swimmers on the swimming
+    /// joy job showing only the head), humanlikes in an animation, crawling, being carried or with a hediff
+    /// material (e.g. invisibility), corpses on shelves or other buildings.
+    /// Not drawn: extra render nodes of animals and mechanoids, items carried in hand. Pawns wading in water
+    /// get a whole-body ghost: the waterline cut is done by the pawn shaders reading the water depth map,
+    /// which the ghost's Mote shader does not.
     /// </summary>
     [HarmonyPatch(typeof(PawnRenderer), nameof(PawnRenderer.RenderPawnAt))]
     public static class GhostDrawer
     {
         private delegate void ReadResultsFn(PawnRenderer renderer, out bool valid, out bool draw, out bool showBody,
-            out Vector3 bodyPos, out float bodyAngle, out Rot4 facing);
+            out Vector3 bodyPos, out float bodyAngle, out Rot4 facing, out PawnRenderFlags flags);
 
         private static readonly AccessTools.FieldRef<PawnRenderer, Pawn> PawnRef =
             AccessTools.FieldRefAccess<PawnRenderer, Pawn>("pawn");
@@ -52,8 +55,9 @@ namespace CanopyGhost
             if (CanopyGhostMod.Settings.alpha <= 0f)
                 return;
             ReadResults(__instance, out bool valid, out bool draw, out __state.showBody, out __state.bodyPos,
-                out __state.bodyAngle, out __state.facing);
-            __state.ok = valid && draw;
+                out __state.bodyAngle, out __state.facing, out PawnRenderFlags flags);
+            // NoBody: this frame shows only the head (vanilla swimmers), so a whole-body ghost would not match.
+            __state.ok = valid && draw && (flags & PawnRenderFlags.NoBody) == 0;
         }
 
         public static void Postfix(PawnRenderer __instance, Snapshot __state)
@@ -130,13 +134,15 @@ namespace CanopyGhost
             AccessTools.MethodDelegate<NeedsHediffMaterialFn>(AccessTools.Method(typeof(PawnRenderer), "PawnNeedsHediffMaterial"));
 
         // Vanilla PawnRenderer.ParallelGetPreRenderResults useCached conditions, without the camera zoom and
-        // without its Dessicated test: Corpse.RotStageChanged marks the atlas frame dirty and RenderCache uses
-        // the current rot draw mode, so dried-out corpses get a skeleton frame (checked in game).
+        // three of its tests: Dessicated (Corpse.RotStageChanged marks the atlas frame dirty and RenderCache
+        // uses the current rot draw mode, so dried-out corpses get a skeleton frame; checked in game), carrying
+        // (the ghost just lacks the item in hand) and swimming (the NoBody check in Prefix covers what vanilla
+        // hides). The rest would draw the wrong pose or reveal an invisible pawn.
         private static bool AtlasSafe(PawnRenderer renderer, Pawn pawn)
         {
-            return !pawn.Crawling && !pawn.Swimming
+            return !pawn.Crawling
                 && renderer.renderTree?.currentAnimation == null
-                && pawn.carryTracker?.CarriedThing == null && pawn.CarriedBy == null
+                && pawn.CarriedBy == null
                 && !NeedsHediffMaterial(renderer, out _);
         }
 
@@ -150,7 +156,8 @@ namespace CanopyGhost
                 new[]
                 {
                     typeof(PawnRenderer), typeof(bool).MakeByRefType(), typeof(bool).MakeByRefType(), typeof(bool).MakeByRefType(),
-                    typeof(Vector3).MakeByRefType(), typeof(float).MakeByRefType(), typeof(Rot4).MakeByRefType()
+                    typeof(Vector3).MakeByRefType(), typeof(float).MakeByRefType(), typeof(Rot4).MakeByRefType(),
+                    typeof(PawnRenderFlags).MakeByRefType()
                 },
                 typeof(PawnRenderer), true);
             ILGenerator il = dm.GetILGenerator();
@@ -172,6 +179,7 @@ namespace CanopyGhost
             Store(4, typeof(Vector3), AccessTools.Field(resultsType, "bodyPos"));
             Store(5, typeof(float), AccessTools.Field(resultsType, "bodyAngle"));
             Store(6, typeof(Rot4), parms, AccessTools.Field(typeof(PawnDrawParms), "facing"));
+            Store(7, typeof(PawnRenderFlags), parms, AccessTools.Field(typeof(PawnDrawParms), "flags"));
             il.Emit(OpCodes.Ret);
             return (ReadResultsFn)dm.CreateDelegate(typeof(ReadResultsFn));
         }
