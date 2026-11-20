@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
@@ -14,8 +15,8 @@ namespace CanopyGhost
     /// Supported: humanlikes (from vanilla's pawn atlas, at any zoom), animals and mechanoids (body graphic
     /// only), and corpses on the ground (with the item setting).
     /// Not supported, no ghost: pawns drawn without a body this frame (NoBody, e.g. swimmers on the swimming
-    /// joy job showing only the head), humanlikes in an animation, crawling, being carried or with a hediff
-    /// material (e.g. invisibility), corpses on shelves or other buildings.
+    /// joy job showing only the head), humanlikes in an animation, being carried or with a hediff material
+    /// (e.g. invisibility), corpses on shelves or other buildings.
     /// Not drawn: extra render nodes of animals and mechanoids, items carried in hand. Pawns wading in water
     /// get a whole-body ghost: the waterline cut is done by the pawn shaders reading the water depth map,
     /// which the ghost's Mote shader does not.
@@ -52,6 +53,8 @@ namespace CanopyGhost
         public static void Prefix(PawnRenderer __instance, out Snapshot __state)
         {
             __state = default;
+            if (crawlFrames.Count > 0)
+                RefreshAfterCrawl(PawnRef(__instance));
             if (CanopyGhostMod.Settings.alpha <= 0f)
                 return;
             ReadResults(__instance, out bool valid, out bool draw, out __state.showBody, out __state.bodyPos,
@@ -100,6 +103,8 @@ namespace CanopyGhost
                 // (see AtlasSafe), as the ghost would not match or would show an invisible pawn.
                 if (!AtlasSafe(__instance, pawn))
                     return;
+                if (pawn.Crawling && crawlFrames.Add(pawn.thingIDNumber))
+                    GlobalTextureAtlasManager.TryMarkPawnFrameSetDirty(pawn);
                 if (!GlobalTextureAtlasManager.TryGetPawnFrameSet(pawn, out var frameSet, out _))
                     return;
                 mesh = BlitMesh(__instance, frameSet, facing, showBody ? PawnDrawMode.BodyAndHead : PawnDrawMode.HeadOnly);
@@ -132,19 +137,31 @@ namespace CanopyGhost
         private static readonly NeedsHediffMaterialFn NeedsHediffMaterial =
             AccessTools.MethodDelegate<NeedsHediffMaterialFn>(AccessTools.Method(typeof(PawnRenderer), "PawnNeedsHediffMaterial"));
 
+        // Pawns (by thingIDNumber, so no old game is kept alive) whose atlas frame was redrawn for the ghost while
+        // they crawled. The crawl head tilt (and flip) is baked into the frame, and vanilla marks it dirty when the
+        // pawn stands up but not when it stops crawling while still downed; it would then draw the lying pawn
+        // with the tilted frame when zoomed out (checked in game). The frame is also marked dirty when crawling
+        // starts, so the ghost does not show an older lying or standing frame.
+        private static readonly HashSet<int> crawlFrames = new HashSet<int>();
+
+        // Runs before vanilla reads the frame in RenderPawnAt, so the redraw happens in the same frame.
+        private static void RefreshAfterCrawl(Pawn pawn)
+        {
+            if (pawn == null || pawn.Crawling || !crawlFrames.Remove(pawn.thingIDNumber))
+                return;
+            GlobalTextureAtlasManager.TryMarkPawnFrameSetDirty(pawn);
+        }
+
         // Part of vanilla's useCached test in PawnRenderer.ParallelGetPreRenderResults (camera zoom left out).
         // - Animation: the frame holds the plain pose, not the animated one.
-        // - Crawling: the head is tilted (and may be flipped) only while crawling. Standing up marks the frame
-        //   dirty, but stopping to crawl while still downed does not, so a frame rendered here while crawling
-        //   is what vanilla draws once the pawn lies still (zoomed out; checked in game).
         // - Hediff material (e.g. invisibility): the ghost would show a pawn meant to be hidden.
-        // Not needed here: Dessicated (rot stage changes mark the frame dirty; checked in game), carrying
-        // (the ghost only lacks the item in hand), swimming (Prefix's NoBody check) and being carried (the
-        // pawn is unspawned and not in a corpse, so Postfix returns earlier).
+        // Not needed here: Dessicated (rot stage changes mark the frame dirty; checked in game), crawling
+        // (crawlFrames refreshes the frame when crawling starts and stops), carrying (the ghost only lacks the
+        // item in hand), swimming (Prefix's NoBody check) and being carried (the pawn is unspawned and not in a
+        // corpse, so Postfix returns earlier).
         private static bool AtlasSafe(PawnRenderer renderer, Pawn pawn)
         {
-            return !pawn.Crawling
-                && renderer.renderTree?.currentAnimation == null
+            return renderer.renderTree?.currentAnimation == null
                 && !NeedsHediffMaterial(renderer, out _);
         }
 
