@@ -155,6 +155,8 @@ namespace CanopyGhost
             int id = __instance.thingIDNumber;
             if (!records.TryGetValue(id, out Record r))
                 records[id] = r = new Record();
+            if (Time.frameCount != columnCycleFrame)
+                UpdateColumnCycle();
             r.tree = __instance;
             r.game = Verse.Current.Game;
             r.previous.Clear();
@@ -234,11 +236,12 @@ namespace CanopyGhost
                 atlasSource = mat;
         }
 
-        public static void PrintPlanePrefix(Vector3 center, Vector2 size, Material mat, bool flipUv, Color32[] colors,
+        public static void PrintPlanePrefix(ref Vector3 center, Vector2 size, Material mat, bool flipUv, Color32[] colors,
             float topVerticesAltitudeBias, float uvzPayload)
         {
             if (printing == null || mat == null)
                 return;
+            center.y += ColumnOffset(printing.tree.Position.x);
             Material own = atlasSource ?? mat;
             atlasSource = null;
             printing.planes.Add(new Plane
@@ -247,6 +250,38 @@ namespace CanopyGhost
                 colors = colors != null ? (Color32[])colors.Clone() : null,
                 topBias = topVerticesAltitudeBias, uvz = uvzPayload,
             });
+        }
+
+        // ---- Column offsets ----
+        // Plant.Print puts the bottom of every grown tree at the same height above its cell (it clamps with the
+        // size factor, not the plane size), so two big trees in one row with the same size range and almost the
+        // same growth have nearly the same plane and z-fight in thin stripes where they overlap. Each column gets
+        // its own small altitude step, so overlapping neighbours always differ. The steps are shuffled
+        // (0, half, 1, half+1, ...) so no direction is always in front, repeat only after the widest canopy, and
+        // stay well below the row-to-row difference (0.1 / tree size), so trees further south stay in front.
+        // A step is larger than the snow overlay lift (0.00037), so a tree's snow never rises above its neighbour.
+        private const float ColumnStep = 0.0005f;
+        private const int MaxColumnCycle = 12;
+        private static int columnCycle = 1;
+        // Better Trees may set the sizes after this class starts or when its settings change, so the cycle is
+        // worked out again on the first tree printed in a frame.
+        private static int columnCycleFrame = -1;
+
+        private static float ColumnOffset(int x)
+        {
+            int i = x % columnCycle;
+            int level = (i % 2 == 0) ? i / 2 : (columnCycle + 1) / 2 + i / 2;
+            return level * ColumnStep;
+        }
+
+        // Widest canopy plane in cells (drawSize x the largest size factor).
+        private static void UpdateColumnCycle()
+        {
+            float widest = 1f;
+            foreach (ThingDef def in canopyDefs)
+                widest = Mathf.Max(widest, def.graphicData.drawSize.x * def.plant.visualSizeRange.max);
+            columnCycle = Mathf.Clamp(Mathf.CeilToInt(widest), 1, MaxColumnCycle);
+            columnCycleFrame = Time.frameCount;
         }
 
         // Drops records of trees no longer on a map of this game (destroyed, minified, left on a discarded map, or
