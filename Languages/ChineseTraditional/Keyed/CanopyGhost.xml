@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <CG_Alpha>透視程度：{0}</CG_Alpha>
-  <CG_Alpha_Desc>樹下的東西（角色、武器、物品、屍體）透過樹冠顯示的程度，不論被幾層樹冠蓋住都一樣。0%為樹冠不透明；100%為樹木完全在角色下方。</CG_Alpha_Desc>
+  <CG_Alpha_Desc>樹下的東西（角色、武器、物品、屍體）透過樹冠顯示的程度，不論被幾層樹冠蓋住都一樣。0%為樹冠不透明；100%為完全關閉透視圖層（樹木留在角色下方，無效能負擔）。</CG_Alpha_Desc>
+  <CG_Resolution>透視圖層解析度：{0}</CG_Resolution>
+  <CG_Resolution_Desc>透視圖層相對於螢幕的解析度。越低顯示卡負擔越小，透出東西處的樹冠會稍微變軟。只有視野內有東西在樹下時才會繪製，在密林中大戰時負擔最大。</CG_Resolution_Desc>
   <CG_HideBetterTreesButton>隱藏Better Trees的透明按鈕</CG_HideBetterTreesButton>
   <CG_HideBetterTreesButton_Desc>移除右下角Better Trees的游標透明按鈕。快捷鍵仍可使用。</CG_HideBetterTreesButton_Desc>
 </LanguageData>

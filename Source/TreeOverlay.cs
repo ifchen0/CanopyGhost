@@ -32,11 +32,10 @@ namespace CanopyGhost
         // frame is rendered.
         private const float Margin = 1.1f;
 
-        /// <summary>
-        /// Resolution of the picture relative to the screen. Half is enough: it is laid translucent over the
-        /// sharp trees, and it costs about half as much as full resolution (measured in a big forest battle).
-        /// </summary>
-        public static float Scale = 0.5f;
+        // Resolution of the picture relative to the screen, from the settings (default half: it is laid
+        // translucent over the sharp trees, and costs about half as much as full resolution in a big forest
+        // battle).
+        private static float Scale => Mathf.Clamp(CanopyGhostMod.Settings.resolution, 0.25f, 1f);
 
         private static readonly HashSet<ThingDef> canopyDefs = new HashSet<ThingDef>();
 
