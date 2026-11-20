@@ -31,6 +31,8 @@ namespace CanopyGhost
 
         private static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
 
+        internal static void Clear() => entries.Clear();
+
         public static bool UnderCanopy(Pawn pawn)
         {
             IntVec3 cell = pawn.Position;

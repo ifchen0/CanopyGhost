@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <CG_Alpha>See-through: {0}</CG_Alpha>
-  <CG_Alpha_Desc>How much of what stands under a tree (pawns, weapons, items, corpses) shows through its canopy, the same under any number of trees. 0% makes canopies solid; 100% turns the see-through layer off completely (trees stay below pawns, no cost).</CG_Alpha_Desc>
+  <CG_Alpha_Desc>How much of what stands under a tree (pawns, weapons, items, corpses) shows through its canopy, the same under any number of trees. 0% hides what is under trees as if this mod were not there; 100% turns the see-through layer off completely (trees stay below pawns, no cost).</CG_Alpha_Desc>
   <CG_Resolution>See-through layer resolution: {0}</CG_Resolution>
   <CG_Resolution_Desc>Resolution of the see-through layer, relative to the screen. Lower is lighter on the graphics card; canopies over things that show through get slightly softer. The layer is only drawn while something stands under a tree in view, and costs most in a battle in a dense forest.</CG_Resolution_Desc>
   <CG_Refresh>See-through layer refresh: every {0} frame(s) in strong wind</CG_Refresh>

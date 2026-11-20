@@ -31,6 +31,7 @@ namespace CanopyGhost
 
         public override void MapComponentUpdate()
         {
+            TreeOverlay.CheckGame();
             if (CanopyGhostMod.Settings.alpha >= 1f || map != Find.CurrentMap || WorldRendererUtility.WorldSelected)
                 return;
             int frame = Time.frameCount;
@@ -71,7 +72,7 @@ namespace CanopyGhost
             }
             foreach (Plant t in overItems)
             {
-                if (!view.Contains(t.Position))
+                if (!view.Contains(t.Position) || !t.Spawned || !TreeOverlay.IsCanopyTree(t.def))
                     continue;
                 CanopyCache.FullQuad(t, out float cx, out float cz, out float half);
                 minX = Mathf.Min(minX, cx - half);
@@ -100,7 +101,7 @@ namespace CanopyGhost
                         trees.Add(plant);
                 }
             }
-            overItems.RemoveWhere(t => !t.Spawned || t.Map != map);
+            overItems.RemoveWhere(t => !t.Spawned || t.Map != map || !TreeOverlay.IsCanopyTree(t.def));
             TreeOverlay.ForgetDespawned();
             next = 0;
         }
@@ -131,11 +132,12 @@ namespace CanopyGhost
         private bool HasItemUnder(Plant tree)
         {
             CanopyCache.FullQuad(tree, out float cx, out float cz, out float half);
-            // Items are drawn about a cell wide around their cell centre.
-            int minX = Mathf.FloorToInt(cx - half - 0.5f);
-            int maxX = Mathf.FloorToInt(cx + half + 0.5f) - 1;
-            int minZ = Mathf.FloorToInt(cz - half - 0.5f);
-            int maxZ = Mathf.FloorToInt(cz + half + 0.5f) - 1;
+            // Items are drawn about a cell wide on their cell: cell x covers [x, x+1] and overlaps the canopy when
+            // x + 1 > left edge and x < right edge.
+            int minX = Mathf.FloorToInt(cx - half);
+            int maxX = Mathf.CeilToInt(cx + half) - 1;
+            int minZ = Mathf.FloorToInt(cz - half);
+            int maxZ = Mathf.CeilToInt(cz + half) - 1;
             for (int z = minZ; z <= maxZ; z++)
             {
                 for (int x = minX; x <= maxX; x++)

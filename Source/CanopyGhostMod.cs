@@ -6,8 +6,9 @@ namespace CanopyGhost
 {
     public class GhostSettings : ModSettings
     {
-        // How much of what stands under a canopy shows through it: the canopy picture is laid at 1 - alpha.
-        // 0 makes canopies solid; 1 leaves trees fully below pawns.
+        // How much of what stands under a canopy shows through it: the canopy picture is laid at 1 - alpha over the
+        // area of the things under canopies. 0 hides them as if the mod were not there; 1 leaves trees fully below
+        // pawns and draws nothing.
         public float alpha = 0.4f;
         // Resolution of the see-through layer relative to the screen (TreeOverlay); lower is lighter on the GPU.
         public float resolution = 1f;

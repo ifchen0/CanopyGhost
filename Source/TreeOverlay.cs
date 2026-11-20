@@ -69,7 +69,8 @@ namespace CanopyGhost
             var harmony = new Harmony("ifchen0.canopyghost.overlay");
             harmony.Patch(AccessTools.Method(typeof(Plant), nameof(Plant.Print)),
                 prefix: new HarmonyMethod(typeof(TreeOverlay), nameof(PrintPrefix)),
-                postfix: new HarmonyMethod(typeof(TreeOverlay), nameof(PrintPostfix)));
+                postfix: new HarmonyMethod(typeof(TreeOverlay), nameof(PrintPostfix)),
+                finalizer: new HarmonyMethod(typeof(TreeOverlay), nameof(PrintFinalizer)));
             harmony.Patch(AccessTools.Method(typeof(Graphic), nameof(Graphic.TryGetTextureAtlasReplacementInfo)),
                 prefix: new HarmonyMethod(typeof(TreeOverlay), nameof(AtlasPrefix)));
             harmony.Patch(AccessTools.Method(typeof(Printer_Plane), nameof(Printer_Plane.PrintPlane)),
@@ -101,7 +102,13 @@ namespace CanopyGhost
                 canopyDefs.Add(def);
                 changed = true;
             }
-            if ((changed || clear) && Current.ProgramState == ProgramState.Playing && Find.Maps != null)
+            if (changed || clear)
+            {
+                // Planes recorded under the old altitudes; the maps are reprinted below.
+                records.Clear();
+                quadsVersion++;
+            }
+            if ((changed || clear) && Verse.Current.ProgramState == ProgramState.Playing && Find.Maps != null)
             {
                 foreach (Map map in Find.Maps)
                     map.mapDrawer.RegenerateEverythingNow();
@@ -124,6 +131,9 @@ namespace CanopyGhost
         private class Record
         {
             public Plant tree;
+            // The game the tree was printed in: plants of an unloaded game still look spawned, and their map index
+            // points into the new game's maps.
+            public Game game;
             public readonly List<Plane> planes = new List<Plane>();
             // The planes before the current print, to tell whether the tree really changed.
             public readonly List<Plane> previous = new List<Plane>();
@@ -146,6 +156,7 @@ namespace CanopyGhost
             if (!records.TryGetValue(id, out Record r))
                 records[id] = r = new Record();
             r.tree = __instance;
+            r.game = Verse.Current.Game;
             r.previous.Clear();
             r.previous.AddRange(r.planes);
             r.planes.Clear();
@@ -154,6 +165,21 @@ namespace CanopyGhost
 
         // Vanilla reprints every tree of a map section whenever anything in it changes (in a battle: blood,
         // corpses, dropped weapons, all the time). Only a tree that prints differently invalidates the picture.
+        // A Print that throws skips the postfix: clear the printing state here too, or every plane printed next
+        // (walls, floors...) would be recorded as this tree's. The partly recorded tree is dropped.
+        public static Exception PrintFinalizer(Exception __exception)
+        {
+            if (__exception != null && printing != null)
+            {
+                printing.planes.Clear();
+                printing.verts = null;
+                quadsVersion++;
+                printing = null;
+                atlasSource = null;
+            }
+            return __exception;
+        }
+
         public static void PrintPostfix()
         {
             Record r = printing;
@@ -223,16 +249,38 @@ namespace CanopyGhost
             });
         }
 
+        // Drops records of trees no longer on a map of this game (destroyed, minified, left on a discarded map, or
+        // from an earlier game); a tree spawned again is printed and recorded again.
         internal static void ForgetDespawned()
         {
             var dead = new List<int>();
             foreach (KeyValuePair<int, Record> kv in records)
             {
-                if (kv.Value.tree == null || kv.Value.tree.Destroyed)
+                if (!IsLive(kv.Value))
                     dead.Add(kv.Key);
             }
             foreach (int id in dead)
                 records.Remove(id);
+        }
+
+        private static bool IsLive(Record r)
+        {
+            Plant t = r.tree;
+            return t != null && r.game == Verse.Current.Game && !t.Destroyed && t.Spawned;
+        }
+
+        private static Game seenGame;
+
+        // Called every frame: on a new game, forget everything from the old one.
+        internal static void CheckGame()
+        {
+            if (seenGame == Verse.Current.Game)
+                return;
+            seenGame = Verse.Current.Game;
+            ForgetDespawned();
+            ReleasePicture();
+            CanopyCache.Clear();
+            quadsVersion++;
         }
 
         // ---- Batches: the trees of one frame, merged into one mesh per material ----
@@ -293,8 +341,9 @@ namespace CanopyGhost
             bool zoomOk = moving ? Mathf.Abs(zoom - pictureZoom) <= ZoomTolerance * pictureZoom : Mathf.Approximately(zoom, pictureZoom);
             float sway = SwayHead(map.windManager);
             bool fresh = Mathf.Abs(sway - pictureSway) < SwayTolerance;
-            bool keep = picture != null && pictureMap == map && Contains(pictureArea, need) && zoomOk
+            bool keep = picture != null && picture.IsCreated() && pictureMap == map && Contains(pictureArea, need) && zoomOk
                         && pictureVersion == quadsVersion && fresh
+                        && Mathf.Approximately(pictureScale, Scale) && picturePixelHeight == cam.pixelHeight
                         // A low-resolution picture made while moving is redrawn once the camera stops.
                         && !(pictureLowRes && !moving);
             if (!keep)
@@ -308,18 +357,27 @@ namespace CanopyGhost
                 foreach (Record r in records.Values)
                 {
                     Plant t = r.tree;
-                    if (t == null || !t.Spawned || t.Map != map)
+                    if (!IsLive(r) || t.Map != map || !canopyDefs.Contains(t.def))
                         continue;
                     CanopyCache.FullQuad(t, out float cx, out float cz, out float half);
                     if (cx + half > area.xMin && cx - half < area.xMax && cz + half > area.yMin && cz - half < area.yMax && Add(r))
                         count++;
                 }
                 BuildBatches();
+                if (toDraw.Count == 0)
+                {
+                    // Nothing to draw (e.g. only trees under Better Trees' cursor transparency): drop the old
+                    // picture rather than lay it.
+                    ReleasePicture();
+                    return;
+                }
                 // The trees' version may have moved while building; remember the one the picture now matches.
                 float scale = moving && LowResWhileMoving ? Mathf.Min(Scale, 0.5f) : Scale;
-                if (toDraw.Count > 0 && Render(cam, area, scale))
+                if (Render(cam, area, scale))
                 {
                     pictureLowRes = scale < Scale;
+                    pictureScale = Scale;
+                    picturePixelHeight = cam.pixelHeight;
                     pictureSway = sway;
                     pictureArea = area;
                     pictureZoom = cam.orthographicSize;
@@ -329,13 +387,13 @@ namespace CanopyGhost
                     drawnCount = count;
                 }
                 toDraw.Clear();
-                if (count == 0)
-                    return;
             }
             drawnFrame = frame;
             LayPicture();
         }
 
+        private static float pictureScale;
+        private static int picturePixelHeight;
         private static Vector3 lastCamPos;
         private static float lastZoom;
         private static int movedFrame = -1000;
@@ -346,9 +404,12 @@ namespace CanopyGhost
         {
             if (checkedFrame != frame)
             {
+                // Only a change since the previous frame is movement; after a gap (no picture needed meanwhile)
+                // the position is just taken as the new reference.
+                bool continuous = checkedFrame == frame - 1;
                 checkedFrame = frame;
                 Vector3 pos = cam.transform.position;
-                if ((pos - lastCamPos).sqrMagnitude > 1e-6f || !Mathf.Approximately(cam.orthographicSize, lastZoom))
+                if (continuous && ((pos - lastCamPos).sqrMagnitude > 1e-6f || !Mathf.Approximately(cam.orthographicSize, lastZoom)))
                     movedFrame = frame;
                 lastCamPos = pos;
                 lastZoom = cam.orthographicSize;
@@ -367,6 +428,7 @@ namespace CanopyGhost
                 return false;
             if (r.verts == null)
                 Build(r);
+            bool added = false;
             for (int i = 0; i < r.planes.Count; i++)
             {
                 Material m = r.planes[i].mat;
@@ -376,8 +438,9 @@ namespace CanopyGhost
                 if (!batches.TryGetValue(m, out Batch b))
                     batches[m] = b = new Batch();
                 b.quads.Add((r, i));
+                added = true;
             }
-            return true;
+            return added;
         }
 
         private static void BuildBatches()
@@ -513,6 +576,14 @@ namespace CanopyGhost
             });
             quad.RecalculateBounds();
             return true;
+        }
+
+        private static void ReleasePicture()
+        {
+            if (picture != null)
+                RenderTexture.ReleaseTemporary(picture);
+            picture = null;
+            pictureMap = null;
         }
 
         // Lays the current picture on its world-space quad above pawns.
