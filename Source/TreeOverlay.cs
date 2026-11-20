@@ -11,10 +11,12 @@ namespace CanopyGhost
     /// <summary>
     /// Translucent canopies. Single-mesh trees that another mod (Better Trees' "Render trees over colonists")
     /// lifts above pawns are moved back below them, so pawns, weapons, carried things, animations, items and
-    /// corpses under a tree are drawn by vanilla in full. While something stands under a canopy in view
-    /// (CanopyOverlay decides), every canopy tree in view is drawn again, solid, into an offscreen picture, and
-    /// that picture is laid over the map above pawns at (1 - alpha) opacity. Where nothing is under a tree the
-    /// picture matches the tree below it; things under any number of canopies show through the same (alpha).
+    /// corpses under a tree are drawn by vanilla in full. Around the things standing under canopies in view
+    /// (CanopyOverlay gives the area), every canopy tree reaching that area is drawn again, solid, into an
+    /// offscreen picture of just that area, and the picture is laid over it above pawns at (1 - alpha) opacity.
+    /// Within the area, where nothing is under a tree the picture matches the tree below it; things under any
+    /// number of canopies show through the same (alpha). The picture is kept for a few frames (setting) while
+    /// the area, zoom and trees stay the same; only the trees' sway lags behind meanwhile.
     /// The planes of each canopy tree are recorded while vanilla prints it (Plant.Print: random offset, flip,
     /// size, snow overlay, wind payload), with the tree's own material rather than the texture atlas one, so the
     /// picture sways with the trees.
@@ -28,14 +30,17 @@ namespace CanopyGhost
         private const AltitudeLayer OverlayLayer = AltitudeLayer.PawnUnused;
         // In the picture a tree further south (in front) sits a little higher, so it wins the depth test.
         private const float SortSpan = 0.03f;
-        // The picture covers the view plus this margin, so it still covers it if the camera moves before the
-        // frame is rendered.
-        private const float Margin = 1.1f;
+        // Cells added around the needed area when the picture is redrawn, so things moving a little stay inside
+        // it and the picture can be kept.
+        private const float RegionSlack = 2f;
+        // Largest side of the picture in pixels.
+        private const int MaxPictureSize = 4096;
 
-        // Resolution of the picture relative to the screen, from the settings (default half: it is laid
-        // translucent over the sharp trees, and costs about half as much as full resolution in a big forest
-        // battle).
+        // Resolution of the picture relative to the screen, and how many frames it is kept (settings; default full
+        // resolution kept 3 frames: as cheap as half resolution every frame in a big forest battle, much cheaper
+        // otherwise, and no sway lag seen in the strongest wind).
         private static float Scale => Mathf.Clamp(CanopyGhostMod.Settings.resolution, 0.25f, 1f);
+        private static int KeepFrames => Mathf.Clamp(CanopyGhostMod.Settings.refreshFrames, 1, 3);
 
         private static readonly HashSet<ThingDef> canopyDefs = new HashSet<ThingDef>();
 
@@ -195,22 +200,65 @@ namespace CanopyGhost
         private static int drawnCount;
         private static int drawnFrame = -1;
 
-        /// <summary>Draws every canopy tree of the map within the view rect into the picture and lays it over the map.</summary>
-        internal static void DrawInView(Map map, CellRect view)
+        /// <summary>Times the picture was rendered (tests: renders per frame).</summary>
+        public static int RenderCount;
+
+        // The area the current picture covers (world x/z), the zoom it was made at and when.
+        private static Rect pictureArea;
+        private static float pictureZoom;
+        private static int pictureFrame = -1000;
+        private static int pictureVersion = -1;
+        private static Map pictureMap;
+
+        /// <summary>
+        /// Lays the canopy picture over the given area (world x/z) this frame: redrawn when the area is not inside
+        /// the current picture, the zoom or the trees changed, or the picture is older than the refresh setting.
+        /// </summary>
+        internal static void DrawArea(Map map, Rect need)
         {
-            int count = 0;
-            foreach (Record r in records.Values)
+            Camera cam = Find.Camera;
+            if (cam == null || !cam.orthographic)
+                return;
+            int frame = Time.frameCount;
+            bool keep = picture != null && pictureMap == map && Contains(pictureArea, need)
+                        && Mathf.Approximately(pictureZoom, cam.orthographicSize) && pictureVersion == quadsVersion
+                        && frame - pictureFrame < KeepFrames;
+            if (!keep)
             {
-                Plant t = r.tree;
-                if (t != null && t.Spawned && t.Map == map && view.Contains(t.Position) && Add(r))
-                    count++;
+                Rect area = Rect.MinMaxRect(Mathf.Floor(need.xMin - RegionSlack), Mathf.Floor(need.yMin - RegionSlack),
+                    Mathf.Ceil(need.xMax + RegionSlack), Mathf.Ceil(need.yMax + RegionSlack));
+                int count = 0;
+                foreach (Record r in records.Values)
+                {
+                    Plant t = r.tree;
+                    if (t == null || !t.Spawned || t.Map != map)
+                        continue;
+                    CanopyCache.FullQuad(t, out float cx, out float cz, out float half);
+                    if (cx + half > area.xMin && cx - half < area.xMax && cz + half > area.yMin && cz - half < area.yMax && Add(r))
+                        count++;
+                }
+                BuildBatches();
+                // The trees' version may have moved while building; remember the one the picture now matches.
+                if (toDraw.Count > 0 && Render(cam, area))
+                {
+                    pictureArea = area;
+                    pictureZoom = cam.orthographicSize;
+                    pictureFrame = frame;
+                    pictureVersion = quadsVersion;
+                    pictureMap = map;
+                    drawnCount = count;
+                }
+                toDraw.Clear();
+                if (count == 0)
+                    return;
             }
-            drawnFrame = Time.frameCount;
-            drawnCount = count;
-            BuildBatches();
-            if (toDraw.Count > 0)
-                DrawPicture();
-            toDraw.Clear();
+            drawnFrame = frame;
+            LayPicture();
+        }
+
+        private static bool Contains(Rect outer, Rect inner)
+        {
+            return inner.xMin >= outer.xMin && inner.xMax <= outer.xMax && inner.yMin >= outer.yMin && inner.yMax <= outer.yMax;
         }
 
         private static bool Add(Record r)
@@ -322,34 +370,25 @@ namespace CanopyGhost
         /// <summary>The offscreen picture (tests read it).</summary>
         public static RenderTexture Picture => picture;
 
-        // Renders the batches (the trees' own materials, solid, depth-tested so the nearer tree wins) into the
-        // picture from the camera as it is now, then lays it on a world-space quad over the same area above
-        // pawns. Both use the same camera state, so the picture stays on the trees even if the camera moves
-        // before the frame is rendered.
-        private static void DrawPicture()
+        // Renders the batches (the trees' own materials, solid, depth-tested so the nearer tree wins) into a
+        // picture of the area, at the screen's pixel density times the resolution setting.
+        private static bool Render(Camera cam, Rect area)
         {
-            Camera cam = Find.Camera;
-            if (cam == null || !cam.orthographic)
-                return;
-            int w = Mathf.Max(16, Mathf.CeilToInt(cam.pixelWidth * Margin * Scale));
-            int h = Mathf.Max(16, Mathf.CeilToInt(cam.pixelHeight * Margin * Scale));
-            if (picture == null || picture.width != w || picture.height != h)
-            {
-                if (picture != null)
-                    picture.Release();
-                picture = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32) { name = "CanopyPicture" };
-                picture.Create();
-            }
-            float halfH = cam.orthographicSize * Margin;
-            float halfW = halfH * cam.aspect;
+            float pixelsPerCell = cam.pixelHeight / (2f * cam.orthographicSize) * Scale;
+            int w = Mathf.Clamp(Mathf.CeilToInt(area.width * pixelsPerCell), 16, MaxPictureSize);
+            int h = Mathf.Clamp(Mathf.CeilToInt(area.height * pixelsPerCell), 16, MaxPictureSize);
+            if (picture != null)
+                RenderTexture.ReleaseTemporary(picture);
+            picture = RenderTexture.GetTemporary(w, h, 24, RenderTextureFormat.ARGB32);
 
             // Drawn from a camera's OnPostRender like vanilla's pawn cache: immediate drawing into a texture
             // outside a camera render does nothing on 1.7.
             Camera offscreen = PictureCamera.Get();
-            offscreen.transform.position = cam.transform.position;
+            Vector3 camPos = cam.transform.position;
+            offscreen.transform.position = new Vector3(area.center.x, camPos.y, area.center.y);
             offscreen.transform.rotation = cam.transform.rotation;
-            offscreen.orthographicSize = halfH;
-            offscreen.aspect = cam.aspect;
+            offscreen.orthographicSize = area.height / 2f;
+            offscreen.aspect = area.width / area.height;
             offscreen.nearClipPlane = cam.nearClipPlane;
             offscreen.farClipPlane = cam.farClipPlane;
             PictureCamera.items = toDraw;
@@ -357,8 +396,8 @@ namespace CanopyGhost
             offscreen.Render();
             offscreen.targetTexture = null;
             PictureCamera.items = null;
+            RenderCount++;
 
-            Vector3 pos = cam.transform.position;
             float y = OverlayLayer.AltitudeFor() + SortSpan + 0.15f;
             if (quad == null)
             {
@@ -369,10 +408,18 @@ namespace CanopyGhost
             }
             quad.SetVertices(new List<Vector3>
             {
-                new Vector3(pos.x - halfW, y, pos.z - halfH), new Vector3(pos.x - halfW, y, pos.z + halfH),
-                new Vector3(pos.x + halfW, y, pos.z + halfH), new Vector3(pos.x + halfW, y, pos.z - halfH),
+                new Vector3(area.xMin, y, area.yMin), new Vector3(area.xMin, y, area.yMax),
+                new Vector3(area.xMax, y, area.yMax), new Vector3(area.xMax, y, area.yMin),
             });
             quad.RecalculateBounds();
+            return true;
+        }
+
+        // Lays the current picture on its world-space quad above pawns.
+        private static void LayPicture()
+        {
+            if (picture == null || quad == null)
+                return;
             if (quadMat == null)
                 quadMat = new Material(ShaderDatabase.Mote) { name = "CanopyPicture" };
             quadMat.mainTexture = picture;

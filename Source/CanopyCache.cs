@@ -23,7 +23,7 @@ namespace CanopyGhost
         private const int ScanX = 4;
         private const int ScanBelow = 6;
         private const int ScanAbove = 1;
-        private const float PawnCenterRaise = 0.2f;
+        internal const float PawnCenterRaise = 0.2f;
         private const float MinPawnDrawSize = 1.5f;
         private const float HeldMargin = 0.4f;
         // Tree textures have empty margins; TreeQuad leaves them out.
@@ -44,10 +44,16 @@ namespace CanopyGhost
             return covered;
         }
 
-        private static bool Scan(Pawn pawn, IntVec3 cell)
+        /// <summary>Half the side of the square a pawn is drawn in, with room for a held or carried thing.</summary>
+        internal static float DrawHalfSize(Pawn pawn)
         {
             Vector2 size = pawn.Drawer?.renderer?.BodyGraphic?.drawSize ?? Vector2.one;
-            float half = (Mathf.Max(MinPawnDrawSize, size.x, size.y) + HeldMargin) * 0.5f;
+            return (Mathf.Max(MinPawnDrawSize, size.x, size.y) + HeldMargin) * 0.5f;
+        }
+
+        private static bool Scan(Pawn pawn, IntVec3 cell)
+        {
+            float half = DrawHalfSize(pawn);
             float px = cell.x + 0.5f;
             float pz = cell.z + 0.5f + PawnCenterRaise;
             Map map = pawn.Map;

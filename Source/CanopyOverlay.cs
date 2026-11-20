@@ -7,11 +7,11 @@ using Verse;
 namespace CanopyGhost
 {
     /// <summary>
-    /// Decides each frame whether the canopy picture (TreeOverlay) is needed: only while a spawned pawn in view
-    /// stands under a canopy tree (checked every frame through CanopyCache, so a pawn walking under a tree is
-    /// covered at once), or an item or corpse lies under a canopy tree in view (checked a slice of trees per
-    /// frame, every tree about once a second, as items seldom move). Otherwise the trees below pawns look the
-    /// same as with the picture, and nothing is drawn.
+    /// Gives the canopy picture (TreeOverlay) the area it must cover each frame: the drawn area of every spawned
+    /// pawn in view standing under a canopy tree (checked every frame through CanopyCache, so a pawn walking
+    /// under a tree is covered at once), and the canopy of every tree in view with an item or corpse under it
+    /// (checked a slice of trees per frame, every tree about once a second, as items seldom move). With nothing
+    /// under the trees in view the trees below pawns look the same as with the picture, and nothing is drawn.
     /// </summary>
     public class CanopyOverlay : MapComponent
     {
@@ -37,26 +37,48 @@ namespace CanopyGhost
             if (frame - treesFrame >= TreeListFrames)
                 RefreshTreeList(frame);
             CheckItems();
-            CellRect view = Find.CameraDriver.CurrentViewRect.ExpandedBy(ViewMargin);
-            if (AnythingUnderCanopy(view))
-                TreeOverlay.DrawInView(map, view);
+            CellRect visible = Find.CameraDriver.CurrentViewRect.ExpandedBy(1);
+            CellRect view = visible.ExpandedBy(ViewMargin);
+            if (AreaUnderCanopy(view, visible, out Rect area))
+                TreeOverlay.DrawArea(map, area);
         }
 
-        private bool AnythingUnderCanopy(CellRect view)
+        // World x/z rect around everything that needs the picture (things anywhere in view, the wider rect), clipped
+        // to what the camera shows (visible).
+        private bool AreaUnderCanopy(CellRect view, CellRect visible, out Rect area)
         {
+            float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
             IReadOnlyList<Pawn> pawns = map.mapPawns.AllPawnsSpawned;
             for (int i = 0; i < pawns.Count; i++)
             {
                 Pawn p = pawns[i];
-                if (view.Contains(p.Position) && CanopyCache.UnderCanopy(p))
-                    return true;
+                if (!view.Contains(p.Position) || !CanopyCache.UnderCanopy(p))
+                    continue;
+                Vector3 pos = p.DrawPos;
+                float half = CanopyCache.DrawHalfSize(p);
+                minX = Mathf.Min(minX, pos.x - half);
+                maxX = Mathf.Max(maxX, pos.x + half);
+                minZ = Mathf.Min(minZ, pos.z - half + CanopyCache.PawnCenterRaise);
+                maxZ = Mathf.Max(maxZ, pos.z + half + CanopyCache.PawnCenterRaise);
             }
             foreach (Plant t in overItems)
             {
-                if (view.Contains(t.Position))
-                    return true;
+                if (!view.Contains(t.Position))
+                    continue;
+                CanopyCache.FullQuad(t, out float cx, out float cz, out float half);
+                minX = Mathf.Min(minX, cx - half);
+                maxX = Mathf.Max(maxX, cx + half);
+                minZ = Mathf.Min(minZ, cz - half);
+                maxZ = Mathf.Max(maxZ, cz + half);
             }
-            return false;
+            if (minX > maxX)
+            {
+                area = default;
+                return false;
+            }
+            area = Rect.MinMaxRect(Mathf.Max(minX, visible.minX), Mathf.Max(minZ, visible.minZ),
+                Mathf.Min(maxX, visible.maxX + 1), Mathf.Min(maxZ, visible.maxZ + 1));
+            return area.width > 0f && area.height > 0f;
         }
 
         private void RefreshTreeList(int frame)
