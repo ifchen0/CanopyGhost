@@ -626,8 +626,11 @@ namespace CanopyGhost
         {
             if (picture == null || quad == null)
                 return;
+            // Mote's queue (3000) sits above the map's transparent queue (2900), so the picture would cover
+            // overlays drawn higher up in that queue (e.g. Quiet Wonders cloud shadows) whatever their altitude.
+            // In the trees' own queue it is sorted by altitude like the trees it stands in for.
             if (quadMat == null)
-                quadMat = new Material(ShaderDatabase.Mote) { name = "CanopyPicture" };
+                quadMat = new Material(ShaderDatabase.Mote) { name = "CanopyPicture", renderQueue = ShaderDatabase.Transparent.renderQueue };
             quadMat.mainTexture = picture;
             quadMat.color = new Color(1f, 1f, 1f, 1f - CanopyGhostMod.Settings.alpha);
             Graphics.DrawMesh(quad, Matrix4x4.identity, quadMat, 0);
