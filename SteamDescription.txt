@@ -1,22 +1,21 @@
-An add-on for [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3539609975]Better Trees[/url]. With its "Render trees over colonists" option on, a dense forest hides everyone in it; this mod shows pawns and items under a canopy as a translucent ghost through the leaves, so you can still see who is where.
+An add-on for [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3539609975]Better Trees[/url]. With its "Render trees over colonists" option on, a dense forest hides everyone in it; this mod makes the canopy translucent wherever something stands under it, so you can still see who is where and what they are doing.
 
 [h2]What it does[/h2][list]
-[*]Pawns under a canopy show through it (40% by default), with the weapon in their hands and whatever they carry. Parts that are not covered look the same as before.
-[*]Items and corpses lying under trees show through too, packed furniture and trees included.
-[*]The trees themselves are left alone, so nothing fades in and out as pawns walk around.
+[*]Pawns, the weapons in their hands, whatever they carry, items and corpses under a canopy show through it (40% by default), the same under one tree or many.
+[*]Everything shows as it really is: fights, Melee Animation duels, crawling, aiming, hauling.
+[*]Trees with nothing under them look exactly as before, and the canopy keeps swaying with them in the wind.
 [/list]
 
 [h2]Settings[/h2][list]
-[*]Ghost opacity; 0% turns it off.
-[*]Animals and mechanoids on or off.
-[*]Items and corpses on or off.
+[*]See-through: 0% keeps canopies solid; 100% turns the mod's layer off completely.
+[*]Layer resolution and refresh (default full resolution, redrawn every 3rd frame). Lower them on a weaker graphics card.
 [*]Hide Better Trees' cursor-transparency button (off by default). Its hotkey keeps working.
 [/list]
 
 [h2]Notes[/h2][list]
-[*]Works with any mod that draws trees over pawns; with vanilla tree layering it does nothing. Better Trees is not required.
-[*]No ghost for: pawns in an animation (for example Melee Animation duels), being carried, or swimming with only the head showing; things on shelves or other buildings; modded items with their own drawing.
-[*]In a 73-pawn battle inside a dense forest the ghosts took about 1 ms per frame zoomed in and less zoomed out; see the chart in the gallery.
+[*]Works with any mod that draws trees over pawns: it moves those trees back below pawns and lays a translucent copy of the canopy on top. With vanilla tree layering it does nothing. Better Trees is not required.
+[*]Bullets and effects over trees with nothing under them show as in vanilla, on top of the leaves.
+[*]Cost: near zero in normal colony play; about 8 ms per frame zoomed in on a 73-pawn battle inside a dense forest, the worst case. See the chart in the gallery.
 [*]Tested on RimWorld 1.7.
 [*]Safe to add to or remove from an existing save.
 [/list]
