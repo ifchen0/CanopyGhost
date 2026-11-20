@@ -10,23 +10,14 @@ namespace CanopyGhost
     /// the weapon inside RenderPawnAt at the pawn's own altitude, under the canopy; this repeats that draw with the
     /// ghost material at the ghost altitude.
     /// Same geometry as PawnRenderUtility.DrawEquipmentAiming (mesh flip, angle offset, recoil); mods that change
-    /// how weapons are drawn are not followed. Items carried in hand are not drawn.
+    /// how weapons are drawn are not followed.
     /// </summary>
     [HarmonyPatch(typeof(PawnRenderUtility), nameof(PawnRenderUtility.DrawEquipmentAiming))]
     public static class WeaponGhost
     {
         public static void Postfix(Thing eq, Vector3 drawLoc, float aimAngle)
         {
-            PawnRenderer renderer = GhostDrawer.Drawing;
-            if (renderer == null || !(eq.ParentHolder is Pawn_EquipmentTracker tracker))
-                return;
-            Pawn pawn = tracker.pawn;
-            // Only the weapon of the pawn being rendered, and only where its body gets a ghost too.
-            if (pawn == null || pawn.Drawer?.renderer != renderer || !pawn.Spawned || pawn.Map != Find.CurrentMap)
-                return;
-            if (pawn.RaceProps.Humanlike ? !GhostDrawer.AtlasSafe(renderer, pawn) : !CanopyGhostMod.Settings.includeAnimals)
-                return;
-            if (!CanopyCache.IsUnderCanopy(pawn))
+            if (!(eq.ParentHolder is Pawn_EquipmentTracker tracker) || !GhostDrawer.HeldThingsGetGhost(tracker.pawn))
                 return;
 
             float angle = aimAngle - 90f;

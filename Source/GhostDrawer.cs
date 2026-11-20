@@ -17,7 +17,8 @@ namespace CanopyGhost
     /// Not supported, no ghost: pawns drawn without a body this frame (NoBody, e.g. swimmers on the swimming
     /// joy job showing only the head), humanlikes in an animation, being carried or with a hediff material
     /// (e.g. invisibility), corpses on shelves or other buildings.
-    /// Not drawn: extra render nodes of animals and mechanoids, items carried in hand. Pawns wading in water
+    /// Weapons and carried things get ghosts from WeaponGhost and CarryGhost.
+    /// Not drawn: extra render nodes of animals and mechanoids. Pawns wading in water
     /// get a whole-body ghost: the waterline cut is done by the pawn shaders reading the water depth map,
     /// which the ghost's Mote shader does not.
     /// </summary>
@@ -39,8 +40,8 @@ namespace CanopyGhost
         // One layer above trees that Better Trees lifts to PawnUnused, still below lighting and fog.
         internal static float GhostAltitude => AltitudeLayer.PawnState.AltitudeFor();
 
-        // The renderer whose RenderPawnAt is running and may get a ghost, with its body altitude; WeaponGhost
-        // reads these while vanilla draws the pawn's weapon inside RenderPawnAt.
+        // The renderer whose RenderPawnAt is running and may get a ghost, with its body altitude; WeaponGhost and
+        // CarryGhost read these while vanilla draws the pawn's weapon or carried thing inside RenderPawnAt.
         internal static PawnRenderer Drawing;
         internal static float DrawingBodyY;
 
@@ -172,9 +173,21 @@ namespace CanopyGhost
         // - Animation: the frame holds the plain pose, not the animated one.
         // - Hediff material (e.g. invisibility): the ghost would show a pawn meant to be hidden.
         // Not needed here: Dessicated (rot stage changes mark the frame dirty; checked in game), crawling
-        // (crawlFrames refreshes the frame when crawling starts and stops), carrying (the ghost only lacks the
-        // item in hand), swimming (Prefix's NoBody check) and being carried (the pawn is unspawned and not in a
+        // (crawlFrames refreshes the frame when crawling starts and stops), carrying (the frame has no carried
+        // thing either; CarryGhost adds it), swimming (Prefix's NoBody check) and being carried (the pawn is unspawned and not in a
         // corpse, so Postfix returns earlier).
+        // For things vanilla draws inside the pawn's RenderPawnAt (weapon, carried thing): true when that pawn
+        // is the one being rendered, is spawned on the current map and its body gets a ghost.
+        internal static bool HeldThingsGetGhost(Pawn pawn)
+        {
+            PawnRenderer renderer = Drawing;
+            if (renderer == null || pawn == null || pawn.Drawer?.renderer != renderer || !pawn.Spawned || pawn.Map != Find.CurrentMap)
+                return false;
+            if (pawn.RaceProps.Humanlike ? !AtlasSafe(renderer, pawn) : !CanopyGhostMod.Settings.includeAnimals)
+                return false;
+            return CanopyCache.IsUnderCanopy(pawn);
+        }
+
         internal static bool AtlasSafe(PawnRenderer renderer, Pawn pawn)
         {
             return renderer.renderTree?.currentAnimation == null
