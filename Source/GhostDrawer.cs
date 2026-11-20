@@ -37,7 +37,12 @@ namespace CanopyGhost
         private static readonly ReadResultsFn ReadResults = BuildReadResults();
 
         // One layer above trees that Better Trees lifts to PawnUnused, still below lighting and fog.
-        private static float GhostAltitude => AltitudeLayer.PawnState.AltitudeFor();
+        internal static float GhostAltitude => AltitudeLayer.PawnState.AltitudeFor();
+
+        // The renderer whose RenderPawnAt is running and may get a ghost, with its body altitude; WeaponGhost
+        // reads these while vanilla draws the pawn's weapon inside RenderPawnAt.
+        internal static PawnRenderer Drawing;
+        internal static float DrawingBodyY;
 
         public struct Snapshot
         {
@@ -46,6 +51,8 @@ namespace CanopyGhost
             public Vector3 bodyPos;
             public float bodyAngle;
             public Rot4 facing;
+            public PawnRenderer outerDrawing;
+            public float outerBodyY;
         }
 
         // RenderPawnAt clears its pre-render results at the end, so capture them before it runs.
@@ -61,12 +68,21 @@ namespace CanopyGhost
                 out __state.bodyAngle, out __state.facing, out PawnRenderFlags flags);
             // NoBody: this frame shows only the head (vanilla swimmers), so a whole-body ghost would not match.
             __state.ok = valid && draw && (flags & PawnRenderFlags.NoBody) == 0;
+            if (!__state.ok)
+                return;
+            // Saved and restored: a pawn carried by another is rendered inside the carrier's RenderPawnAt.
+            __state.outerDrawing = Drawing;
+            __state.outerBodyY = DrawingBodyY;
+            Drawing = __instance;
+            DrawingBodyY = __state.bodyPos.y;
         }
 
         public static void Postfix(PawnRenderer __instance, Snapshot __state)
         {
             if (!__state.ok)
                 return;
+            Drawing = __state.outerDrawing;
+            DrawingBodyY = __state.outerBodyY;
             var settings = CanopyGhostMod.Settings;
             Pawn pawn = PawnRef(__instance);
             if (pawn == null)
@@ -159,7 +175,7 @@ namespace CanopyGhost
         // (crawlFrames refreshes the frame when crawling starts and stops), carrying (the ghost only lacks the
         // item in hand), swimming (Prefix's NoBody check) and being carried (the pawn is unspawned and not in a
         // corpse, so Postfix returns earlier).
-        private static bool AtlasSafe(PawnRenderer renderer, Pawn pawn)
+        internal static bool AtlasSafe(PawnRenderer renderer, Pawn pawn)
         {
             return renderer.renderTree?.currentAnimation == null
                 && !NeedsHediffMaterial(renderer, out _);
