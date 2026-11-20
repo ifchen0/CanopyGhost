@@ -4,6 +4,7 @@ An add-on for [url=https://steamcommunity.com/sharedfiles/filedetails/?id=353960
 [*]Pawns, the weapons in their hands, whatever they carry, items and corpses under a canopy show through it (40% by default), the same under one tree or many.
 [*]Everything shows as it really is: fights, Melee Animation duels, crawling, aiming, hauling.
 [*]Trees with nothing under them look exactly as before, and the canopy keeps swaying with them in the wind.
+[*]Two trees of the same size side by side in one row no longer flicker in thin stripes where they overlap (see the gallery).
 [/list]
 
 [h2]Settings[/h2][list]
