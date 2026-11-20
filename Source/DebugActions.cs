@@ -53,7 +53,8 @@ namespace CanopyGhost
             Slot("animal corpse, dessicated", c => SpawnCorpse(map, c, animal, RotDrawMode.Dessicated));
             Slot("weapon (random angle)", c => SpawnItem(map, c, "Gun_AssaultRifle"));
             Slot("weapon (random angle)", c => SpawnItem(map, c, "MeleeWeapon_LongSword"));
-            Slot("minified furniture (no ghost)", c => SpawnMinified(map, c, "Armchair"));
+            Slot("packed furniture", c => SpawnMinified(map, c, "Armchair"));
+            Slot("packed tree", c => SpawnMinified(map, c, "Plant_TreeOak"));
             Slot("item on a shelf (no ghost)", c =>
             {
                 SpawnBuilding(map, c, "Shelf");
@@ -113,6 +114,8 @@ namespace CanopyGhost
             if (def == null)
                 return;
             Thing building = ThingMaker.MakeThing(def, GenStuff.DefaultStuffFor(def));
+            if (building is Plant plant)
+                plant.Growth = 1f;
             GenSpawn.Spawn(building.MakeMinified(), c, map);
         }
 

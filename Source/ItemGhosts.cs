@@ -13,9 +13,10 @@ namespace CanopyGhost
     /// to hook: this component keeps a grid of covered cells (rebuilt from the canopy trees every few seconds)
     /// and each frame draws a translucent copy of the items on covered cells in view, above the trees.
     /// Supported: items printed by the plain Thing/ThingWithComps.Print with a Graphic printed by the base
-    /// Graphic.Print (single, multi, stack count, random), plus the random ground angle of weapons.
+    /// Graphic.Print (single, multi, stack count, random), plus the random ground angle of weapons; furniture
+    /// and trees packed in a crate (MinifiedThing.Print).
     /// Not supported, no ghost: items on shelves or other buildings, realtime-drawn items, item classes or
-    /// graphics with their own Print (minified furniture in a crate, modded items drawn their own way).
+    /// graphics with their own Print (modded items drawn their own way).
     /// Corpses are drawn by GhostDrawer instead.
     /// </summary>
     public class ItemGhosts : MapComponent
@@ -61,7 +62,11 @@ namespace CanopyGhost
                 for (int i = 0; i < things.Count; i++)
                 {
                     Thing t = things[i];
-                    if (t.def.category == ThingCategory.Item && StandardPrintedItem(t.def))
+                    if (t.def.category != ThingCategory.Item || !StandardPrintedItem(t.def))
+                        continue;
+                    if (t is MinifiedThing minified)
+                        DrawMinifiedGhost(minified, y, settings.alpha);
+                    else
                         DrawGhost(t, y, settings.alpha);
                 }
             }
@@ -116,6 +121,40 @@ namespace CanopyGhost
             Graphics.DrawMesh(MeshPool.GridPlane(size, flip), pos, q, mat, 0);
         }
 
+        private static readonly System.Func<MinifiedThing, Graphic> CrateFront =
+            AccessTools.MethodDelegate<System.Func<MinifiedThing, Graphic>>(AccessTools.PropertyGetter(typeof(MinifiedThing), "CrateFrontGraphic"));
+
+        // Same geometry as MinifiedThing.Print (furniture and trees in a crate): the shrunken inner graphic,
+        // unrotated and unflipped, facing north for single graphics and south otherwise (or the def's
+        // overrideMinifiedRot), plus minifiedDrawOffset; the crate front just above it.
+        private static void DrawMinifiedGhost(MinifiedThing t, float y, float alpha)
+        {
+            Graphic inner = t.Graphic;
+            Thing innerThing = t.InnerThing;
+            if (inner == null || innerThing == null)
+                return;
+            Rot4 rot = inner is Graphic_Single ? Rot4.North : Rot4.South;
+            if (innerThing.def.overrideMinifiedRot != Rot4.Invalid)
+                rot = innerThing.def.overrideMinifiedRot;
+            Vector3 pos = t.DrawPos;
+            pos.y = y;
+            DrawPlane(inner.MatAt(rot, t), pos + innerThing.def.minifiedDrawOffset, inner.drawSize, alpha);
+            Graphic crate = CrateFront(t);
+            if (crate != null)
+                DrawPlane(crate.MatSingle, pos + Altitudes.AltIncVect * 0.1f, crate.drawSize, alpha);
+        }
+
+        private static void DrawPlane(Material src, Vector3 pos, Vector2 size, float alpha)
+        {
+            Texture tex = src?.mainTexture;
+            if (tex == null)
+                return;
+            Color tint = src.color;
+            tint.a = alpha;
+            Material mat = MaterialPool.MatFrom(new MaterialRequest(tex, ShaderDatabase.Mote, tint));
+            Graphics.DrawMesh(MeshPool.GridPlane(size), pos, Quaternion.identity, mat, 0);
+        }
+
         private static readonly AccessTools.FieldRef<Graphic_RandomRotated, float> RandomMaxAngle =
             AccessTools.FieldRefAccess<Graphic_RandomRotated, float>("maxAngle");
 
@@ -129,16 +168,16 @@ namespace CanopyGhost
         private static readonly Dictionary<ThingDef, bool> standardItems = new Dictionary<ThingDef, bool>();
         private static readonly Dictionary<System.Type, bool> standardGraphics = new Dictionary<System.Type, bool>();
 
-        // Only items baked into the map mesh by the plain Thing/ThingWithComps.Print, whose geometry DrawGhost
-        // reproduces. Skips realtime-drawn items (corpses, ...) and classes with their own Print
-        // (minified furniture in a crate, modded items), rather than drawing a ghost that does not match.
+        // Only items baked into the map mesh by the plain Thing/ThingWithComps.Print (geometry reproduced by
+        // DrawGhost) or MinifiedThing.Print (DrawMinifiedGhost). Skips realtime-drawn items (corpses, ...) and
+        // classes with their own Print (modded items), rather than drawing a ghost that does not match.
         private static bool StandardPrintedItem(ThingDef def)
         {
             if (!standardItems.TryGetValue(def, out bool ok))
             {
                 System.Type declaring = AccessTools.Method(def.thingClass, nameof(Thing.Print), new[] { typeof(SectionLayer) })?.DeclaringType;
                 ok = def.drawerType == DrawerType.MapMeshOnly
-                     && (declaring == typeof(Thing) || declaring == typeof(ThingWithComps));
+                     && (declaring == typeof(Thing) || declaring == typeof(ThingWithComps) || declaring == typeof(MinifiedThing));
                 standardItems[def] = ok;
             }
             return ok;
