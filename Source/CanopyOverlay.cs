@@ -39,13 +39,21 @@ namespace CanopyGhost
             CheckItems();
             CellRect visible = Find.CameraDriver.CurrentViewRect.ExpandedBy(1);
             CellRect view = visible.ExpandedBy(ViewMargin);
-            if (AreaUnderCanopy(view, visible, out Rect area))
-                TreeOverlay.DrawArea(map, area);
+            if (ThingsUnderCanopy(view, out Rect things))
+            {
+                Rect need = Clip(things, visible);
+                if (need.width > 0f && need.height > 0f)
+                    TreeOverlay.DrawArea(map, need);
+            }
         }
 
-        // World x/z rect around everything that needs the picture (things anywhere in view, the wider rect), clipped
-        // to what the camera shows (visible).
-        private bool AreaUnderCanopy(CellRect view, CellRect visible, out Rect area)
+        private static Rect Clip(Rect r, CellRect c)
+        {
+            return Rect.MinMaxRect(Mathf.Max(r.xMin, c.minX), Mathf.Max(r.yMin, c.minZ), Mathf.Min(r.xMax, c.maxX + 1), Mathf.Min(r.yMax, c.maxZ + 1));
+        }
+
+        // World x/z rect around everything within the view that needs the picture.
+        private bool ThingsUnderCanopy(CellRect view, out Rect area)
         {
             float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
             IReadOnlyList<Pawn> pawns = map.mapPawns.AllPawnsSpawned;
@@ -76,9 +84,8 @@ namespace CanopyGhost
                 area = default;
                 return false;
             }
-            area = Rect.MinMaxRect(Mathf.Max(minX, visible.minX), Mathf.Max(minZ, visible.minZ),
-                Mathf.Min(maxX, visible.maxX + 1), Mathf.Min(maxZ, visible.maxZ + 1));
-            return area.width > 0f && area.height > 0f;
+            area = Rect.MinMaxRect(minX, minZ, maxX, maxZ);
+            return true;
         }
 
         private void RefreshTreeList(int frame)

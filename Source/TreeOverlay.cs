@@ -16,7 +16,10 @@ namespace CanopyGhost
     /// offscreen picture of just that area, and the picture is laid over it above pawns at (1 - alpha) opacity.
     /// Within the area, where nothing is under a tree the picture matches the tree below it; things under any
     /// number of canopies show through the same (alpha). The picture is kept for a few frames (setting) while
-    /// the area, zoom and trees stay the same; only the trees' sway lags behind meanwhile.
+    /// the area, zoom and trees stay the same; only the trees' sway lags behind meanwhile. While the camera moves
+    /// it is drawn at half resolution (redrawn sharp once the camera stops). A margin past the visible edges was
+    /// tried and dropped: the timed redraws (sway) dominate, so it only made each redraw bigger. While the game is paused it is not redrawn on a
+    /// timer, as the trees do not sway.
     /// The planes of each canopy tree are recorded while vanilla prints it (Plant.Print: random offset, flip,
     /// size, snow overlay, wind payload), with the tree's own material rather than the texture atlas one, so the
     /// picture sways with the trees.
@@ -35,6 +38,14 @@ namespace CanopyGhost
         private const float RegionSlack = 2f;
         // Largest side of the picture in pixels.
         private const int MaxPictureSize = 4096;
+
+        /// <summary>While the camera moves or zooms, draw the picture at half the set resolution (tests switch it).</summary>
+        public static bool LowResWhileMoving = true;
+
+        // The camera counts as moving for this many frames after it last moved or zoomed.
+        private const int MovingFrames = 10;
+        // While zooming, a picture made at up to this much other zoom is kept.
+        private const float ZoomTolerance = 0.1f;
 
         // Resolution of the picture relative to the screen, and how many frames it is kept (settings; default full
         // resolution kept 3 frames: as cheap as half resolution every frame in a big forest battle, much cheaper
@@ -214,15 +225,22 @@ namespace CanopyGhost
         /// Lays the canopy picture over the given area (world x/z) this frame: redrawn when the area is not inside
         /// the current picture, the zoom or the trees changed, or the picture is older than the refresh setting.
         /// </summary>
+        /// <param name="need">Area the picture must cover now (things under canopies, within the visible view).</param>
         internal static void DrawArea(Map map, Rect need)
         {
             Camera cam = Find.Camera;
             if (cam == null || !cam.orthographic)
                 return;
             int frame = Time.frameCount;
-            bool keep = picture != null && pictureMap == map && Contains(pictureArea, need)
-                        && Mathf.Approximately(pictureZoom, cam.orthographicSize) && pictureVersion == quadsVersion
-                        && frame - pictureFrame < KeepFrames;
+            bool moving = CameraMoving(cam, frame);
+            float zoom = cam.orthographicSize;
+            bool zoomOk = moving ? Mathf.Abs(zoom - pictureZoom) <= ZoomTolerance * pictureZoom : Mathf.Approximately(zoom, pictureZoom);
+            // Paused, the trees do not sway, so the picture only needs redrawing when something else changes.
+            bool fresh = frame - pictureFrame < KeepFrames || Find.TickManager.Paused;
+            bool keep = picture != null && pictureMap == map && Contains(pictureArea, need) && zoomOk
+                        && pictureVersion == quadsVersion && fresh
+                        // A low-resolution picture made while moving is redrawn once the camera stops.
+                        && !(pictureLowRes && !moving);
             if (!keep)
             {
                 Rect area = Rect.MinMaxRect(Mathf.Floor(need.xMin - RegionSlack), Mathf.Floor(need.yMin - RegionSlack),
@@ -239,8 +257,10 @@ namespace CanopyGhost
                 }
                 BuildBatches();
                 // The trees' version may have moved while building; remember the one the picture now matches.
-                if (toDraw.Count > 0 && Render(cam, area))
+                float scale = moving && LowResWhileMoving ? Mathf.Min(Scale, 0.5f) : Scale;
+                if (toDraw.Count > 0 && Render(cam, area, scale))
                 {
+                    pictureLowRes = scale < Scale;
                     pictureArea = area;
                     pictureZoom = cam.orthographicSize;
                     pictureFrame = frame;
@@ -254,6 +274,26 @@ namespace CanopyGhost
             }
             drawnFrame = frame;
             LayPicture();
+        }
+
+        private static Vector3 lastCamPos;
+        private static float lastZoom;
+        private static int movedFrame = -1000;
+        private static int checkedFrame = -1;
+        private static bool pictureLowRes;
+
+        private static bool CameraMoving(Camera cam, int frame)
+        {
+            if (checkedFrame != frame)
+            {
+                checkedFrame = frame;
+                Vector3 pos = cam.transform.position;
+                if ((pos - lastCamPos).sqrMagnitude > 1e-6f || !Mathf.Approximately(cam.orthographicSize, lastZoom))
+                    movedFrame = frame;
+                lastCamPos = pos;
+                lastZoom = cam.orthographicSize;
+            }
+            return frame - movedFrame < MovingFrames;
         }
 
         private static bool Contains(Rect outer, Rect inner)
@@ -372,9 +412,9 @@ namespace CanopyGhost
 
         // Renders the batches (the trees' own materials, solid, depth-tested so the nearer tree wins) into a
         // picture of the area, at the screen's pixel density times the resolution setting.
-        private static bool Render(Camera cam, Rect area)
+        private static bool Render(Camera cam, Rect area, float scale)
         {
-            float pixelsPerCell = cam.pixelHeight / (2f * cam.orthographicSize) * Scale;
+            float pixelsPerCell = cam.pixelHeight / (2f * cam.orthographicSize) * scale;
             int w = Mathf.Clamp(Mathf.CeilToInt(area.width * pixelsPerCell), 16, MaxPictureSize);
             int h = Mathf.Clamp(Mathf.CeilToInt(area.height * pixelsPerCell), 16, MaxPictureSize);
             if (picture != null)
