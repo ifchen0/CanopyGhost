@@ -8,14 +8,14 @@ An add-on for [url=https://steamcommunity.com/sharedfiles/filedetails/?id=353960
 
 [h2]Settings[/h2][list]
 [*]See-through: 0% keeps canopies solid; 100% turns the mod's layer off completely.
-[*]Layer resolution and refresh (default full resolution, redrawn every 3rd frame). Lower them on a weaker graphics card.
+[*]Layer resolution and refresh (default full resolution; the layer is only redrawn when the trees sway, change or the view moves). Lower them on a weaker graphics card.
 [*]Hide Better Trees' cursor-transparency button (off by default). Its hotkey keeps working.
 [/list]
 
 [h2]Notes[/h2][list]
 [*]Works with any mod that draws trees over pawns: it moves those trees back below pawns and lays a translucent copy of the canopy on top. With vanilla tree layering it does nothing. Better Trees is not required.
 [*]Bullets and effects over trees with nothing under them show as in vanilla, on top of the leaves.
-[*]Cost: near zero in normal colony play; about 8 ms per frame zoomed in on a 73-pawn battle inside a dense forest, the worst case. See the chart in the gallery.
+[*]Cost: well under 1 ms per frame in our tests, even in a 73-pawn battle inside a dense forest. See the chart in the gallery.
 [*]Tested on RimWorld 1.7.
 [*]Safe to add to or remove from an existing save.
 [/list]

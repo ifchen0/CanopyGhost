@@ -15,11 +15,12 @@ namespace CanopyGhost
     /// (CanopyOverlay gives the area), every canopy tree reaching that area is drawn again, solid, into an
     /// offscreen picture of just that area, and the picture is laid over it above pawns at (1 - alpha) opacity.
     /// Within the area, where nothing is under a tree the picture matches the tree below it; things under any
-    /// number of canopies show through the same (alpha). The picture is kept for a few frames (setting) while
-    /// the area, zoom and trees stay the same; only the trees' sway lags behind meanwhile. While the camera moves
-    /// it is drawn at half resolution (redrawn sharp once the camera stops). A margin past the visible edges was
-    /// tried and dropped: the timed redraws (sway) dominate, so it only made each redraw bigger. While the game is paused it is not redrawn on a
-    /// timer, as the trees do not sway.
+    /// number of canopies show through the same (alpha). The picture is kept while the area, zoom and trees
+    /// stay the same, until the trees have swayed a set amount (read from the wind
+    /// manager's sway counter: less often in calm wind, more often at higher game speed, never while paused or
+    /// with plant sway off). The sway of these trees is small (their top edges move a pixel or two), so the lag
+    /// hardly shows. While the camera moves the picture is drawn at half resolution (redrawn sharp once the
+    /// camera stops). A margin past the visible edges was tried and dropped: it only made each redraw bigger.
     /// The planes of each canopy tree are recorded while vanilla prints it (Plant.Print: random offset, flip,
     /// size, snow overlay, wind payload), with the tree's own material rather than the texture atlas one, so the
     /// picture sways with the trees.
@@ -47,11 +48,15 @@ namespace CanopyGhost
         // While zooming, a picture made at up to this much other zoom is kept.
         private const float ZoomTolerance = 0.1f;
 
-        // Resolution of the picture relative to the screen, and how many frames it is kept (settings; default full
-        // resolution kept 3 frames: as cheap as half resolution every frame in a big forest battle, much cheaper
-        // otherwise, and no sway lag seen in the strongest wind).
+        // Resolution of the picture relative to the screen, and how much the trees may sway before it is redrawn:
+        // the wind manager's sway counter grows by up to 1 per tick (strong wind), so this is frames of strong
+        // wind at normal speed (settings).
         private static float Scale => Mathf.Clamp(CanopyGhostMod.Settings.resolution, 0.25f, 1f);
-        private static int KeepFrames => Mathf.Clamp(CanopyGhostMod.Settings.refreshFrames, 1, 3);
+        private static float SwayTolerance => Mathf.Clamp(CanopyGhostMod.Settings.refreshFrames, 1, 10);
+
+        private static readonly AccessTools.FieldRef<WindManager, float> SwayHead =
+            AccessTools.FieldRefAccess<WindManager, float>("plantSwayHead");
+        private static float pictureSway;
 
         private static readonly HashSet<ThingDef> canopyDefs = new HashSet<ThingDef>();
 
@@ -69,6 +74,8 @@ namespace CanopyGhost
                 prefix: new HarmonyMethod(typeof(TreeOverlay), nameof(AtlasPrefix)));
             harmony.Patch(AccessTools.Method(typeof(Printer_Plane), nameof(Printer_Plane.PrintPlane)),
                 prefix: new HarmonyMethod(typeof(TreeOverlay), nameof(PrintPlanePrefix)));
+            harmony.Patch(AccessTools.Method(typeof(Plant), nameof(Plant.DeSpawn)),
+                postfix: new HarmonyMethod(typeof(TreeOverlay), nameof(DeSpawnPostfix)));
             // Better Trees sets every tree's altitude again whenever its settings are applied.
             MethodInfo betterTrees = AccessTools.Method("BetterTrees.TextureAndSizeApplier:ApplyAltitudeLayerOverrides");
             if (betterTrees != null)
@@ -118,6 +125,8 @@ namespace CanopyGhost
         {
             public Plant tree;
             public readonly List<Plane> planes = new List<Plane>();
+            // The planes before the current print, to tell whether the tree really changed.
+            public readonly List<Plane> previous = new List<Plane>();
             // Built on first use: each plane's corners (lifted above pawns) and uvs with the wind payload.
             public Vector3[][] verts;
             public Vector3[][] uvs;
@@ -137,16 +146,59 @@ namespace CanopyGhost
             if (!records.TryGetValue(id, out Record r))
                 records[id] = r = new Record();
             r.tree = __instance;
+            r.previous.Clear();
+            r.previous.AddRange(r.planes);
             r.planes.Clear();
-            r.verts = null;
-            quadsVersion++;
             printing = r;
         }
 
+        // Vanilla reprints every tree of a map section whenever anything in it changes (in a battle: blood,
+        // corpses, dropped weapons, all the time). Only a tree that prints differently invalidates the picture.
         public static void PrintPostfix()
         {
+            Record r = printing;
             printing = null;
             atlasSource = null;
+            if (r != null && !SamePlanes(r.previous, r.planes))
+            {
+                r.verts = null;
+                quadsVersion++;
+            }
+        }
+
+        // A canopy tree that leaves the map is not printed again, so its removal would go unnoticed.
+        public static void DeSpawnPostfix(Plant __instance)
+        {
+            if (canopyDefs.Contains(__instance.def))
+                quadsVersion++;
+        }
+
+        private static bool SamePlanes(List<Plane> a, List<Plane> b)
+        {
+            if (a.Count != b.Count)
+                return false;
+            for (int i = 0; i < a.Count; i++)
+            {
+                Plane x = a[i], y = b[i];
+                if (x.center != y.center || x.size != y.size || x.mat != y.mat || x.flipUv != y.flipUv
+                    || x.topBias != y.topBias || x.uvz != y.uvz || !SameColors(x.colors, y.colors))
+                    return false;
+            }
+            return true;
+        }
+
+        private static bool SameColors(Color32[] a, Color32[] b)
+        {
+            if (a == null || b == null)
+                return a == b;
+            if (a.Length != b.Length)
+                return false;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (a[i].r != b[i].r || a[i].g != b[i].g || a[i].b != b[i].b || a[i].a != b[i].a)
+                    return false;
+            }
+            return true;
         }
 
         // Plant.Print swaps each material for its texture atlas version just before printing the plane.
@@ -214,6 +266,10 @@ namespace CanopyGhost
         /// <summary>Times the picture was rendered (tests: renders per frame).</summary>
         public static int RenderCount;
 
+        /// <summary>Why the picture was redrawn, counted per reason (tests); index by <see cref="RedrawReasonNames"/>.</summary>
+        public static readonly int[] RedrawReasons = new int[6];
+        public static readonly string[] RedrawReasonNames = { "first", "area", "zoom", "trees reprinted", "sway", "sharpen after moving" };
+
         // The area the current picture covers (world x/z), the zoom it was made at and when.
         private static Rect pictureArea;
         private static float pictureZoom;
@@ -235,14 +291,17 @@ namespace CanopyGhost
             bool moving = CameraMoving(cam, frame);
             float zoom = cam.orthographicSize;
             bool zoomOk = moving ? Mathf.Abs(zoom - pictureZoom) <= ZoomTolerance * pictureZoom : Mathf.Approximately(zoom, pictureZoom);
-            // Paused, the trees do not sway, so the picture only needs redrawing when something else changes.
-            bool fresh = frame - pictureFrame < KeepFrames || Find.TickManager.Paused;
+            float sway = SwayHead(map.windManager);
+            bool fresh = Mathf.Abs(sway - pictureSway) < SwayTolerance;
             bool keep = picture != null && pictureMap == map && Contains(pictureArea, need) && zoomOk
                         && pictureVersion == quadsVersion && fresh
                         // A low-resolution picture made while moving is redrawn once the camera stops.
                         && !(pictureLowRes && !moving);
             if (!keep)
             {
+                int reason = picture == null || pictureMap != map ? 0 : !Contains(pictureArea, need) ? 1 : !zoomOk ? 2
+                    : pictureVersion != quadsVersion ? 3 : !fresh ? 4 : 5;
+                RedrawReasons[reason]++;
                 Rect area = Rect.MinMaxRect(Mathf.Floor(need.xMin - RegionSlack), Mathf.Floor(need.yMin - RegionSlack),
                     Mathf.Ceil(need.xMax + RegionSlack), Mathf.Ceil(need.yMax + RegionSlack));
                 int count = 0;
@@ -261,6 +320,7 @@ namespace CanopyGhost
                 if (toDraw.Count > 0 && Render(cam, area, scale))
                 {
                     pictureLowRes = scale < Scale;
+                    pictureSway = sway;
                     pictureArea = area;
                     pictureZoom = cam.orthographicSize;
                     pictureFrame = frame;
