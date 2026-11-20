@@ -96,9 +96,8 @@ namespace CanopyGhost
             Color tint = Color.white;
             if (humanlike)
             {
-                // Rendering an atlas frame runs vanilla's cache render on the pawn's render tree. Only do it
-                // where vanilla would use the atlas itself (its useCached test minus the zoom check): in the
-                // other states the frame is stale and the cache render can change how the pawn itself draws.
+                // The atlas frame is the pawn's normal look; skip states where the pawn draws differently
+                // (see AtlasSafe), as the ghost would not match or would show an invisible pawn.
                 if (!AtlasSafe(__instance, pawn))
                     return;
                 if (!GlobalTextureAtlasManager.TryGetPawnFrameSet(pawn, out var frameSet, out _))
@@ -133,16 +132,19 @@ namespace CanopyGhost
         private static readonly NeedsHediffMaterialFn NeedsHediffMaterial =
             AccessTools.MethodDelegate<NeedsHediffMaterialFn>(AccessTools.Method(typeof(PawnRenderer), "PawnNeedsHediffMaterial"));
 
-        // Vanilla PawnRenderer.ParallelGetPreRenderResults useCached conditions, without the camera zoom and
-        // three of its tests: Dessicated (Corpse.RotStageChanged marks the atlas frame dirty and RenderCache
-        // uses the current rot draw mode, so dried-out corpses get a skeleton frame; checked in game), carrying
-        // (the ghost just lacks the item in hand) and swimming (the NoBody check in Prefix covers what vanilla
-        // hides). The rest would draw the wrong pose or reveal an invisible pawn.
+        // Part of vanilla's useCached test in PawnRenderer.ParallelGetPreRenderResults (camera zoom left out).
+        // - Animation: the frame holds the plain pose, not the animated one.
+        // - Crawling: the head is tilted (and may be flipped) only while crawling. Standing up marks the frame
+        //   dirty, but stopping to crawl while still downed does not, so a frame rendered here while crawling
+        //   is what vanilla draws once the pawn lies still (zoomed out; checked in game).
+        // - Hediff material (e.g. invisibility): the ghost would show a pawn meant to be hidden.
+        // Not needed here: Dessicated (rot stage changes mark the frame dirty; checked in game), carrying
+        // (the ghost only lacks the item in hand), swimming (Prefix's NoBody check) and being carried (the
+        // pawn is unspawned and not in a corpse, so Postfix returns earlier).
         private static bool AtlasSafe(PawnRenderer renderer, Pawn pawn)
         {
             return !pawn.Crawling
                 && renderer.renderTree?.currentAnimation == null
-                && pawn.CarriedBy == null
                 && !NeedsHediffMaterial(renderer, out _);
         }
 
