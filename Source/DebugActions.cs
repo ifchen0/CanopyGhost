@@ -8,8 +8,8 @@ using Verse;
 namespace CanopyGhost
 {
     /// <summary>
-    /// Dev-mode helper: lays out every kind of thing the ghosts handle differently, each under its own tree
-    /// with an uncovered copy further south, so they can be checked side by side. Changes the map; do not
+    /// Dev-mode helper: lays out various kinds of things, each under its own tree with an uncovered copy
+    /// further south, so how they show through the canopy can be checked side by side. Changes the map; do not
     /// keep the save afterwards.
     /// </summary>
     public static class DebugActions
@@ -28,7 +28,7 @@ namespace CanopyGhost
             void Slot(string label, System.Action<IntVec3> spawn)
             {
                 // Columns three cells apart. The tree stands one cell south of the slot so its canopy covers it;
-                // a reference copy stands three cells south, clear of the canopy, to compare the ghost against.
+                // a reference copy stands three cells south, clear of the canopy, to compare against.
                 IntVec3 cell = origin + new IntVec3(column * 3, 0, 0);
                 IntVec3 tree = cell + IntVec3.South;
                 IntVec3 reference = cell + IntVec3.South * 3;
@@ -55,7 +55,7 @@ namespace CanopyGhost
             Slot("weapon (random angle)", c => SpawnItem(map, c, "MeleeWeapon_LongSword"));
             Slot("packed furniture", c => SpawnMinified(map, c, "Armchair"));
             Slot("packed tree", c => SpawnMinified(map, c, "Plant_TreeOak"));
-            Slot("item on a shelf (no ghost)", c =>
+            Slot("item on a shelf", c =>
             {
                 SpawnBuilding(map, c, "Shelf");
                 SpawnItem(map, c, "MedicineIndustrial");

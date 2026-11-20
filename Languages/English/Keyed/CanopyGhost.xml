@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <CG_Alpha>Ghost opacity: {0}</CG_Alpha>
-  <CG_Alpha_Desc>How visible pawns are through tree canopies. 0% turns the ghost off.</CG_Alpha_Desc>
-  <CG_IncludeAnimals>Show animals and mechanoids too</CG_IncludeAnimals>
-  <CG_IncludeAnimals_Desc>Off: only humanlike pawns get a ghost under trees.</CG_IncludeAnimals_Desc>
-  <CG_ItemGhosts>Show items and corpses under trees too</CG_ItemGhosts>
-  <CG_ItemGhosts_Desc>Items and corpses lying on the ground under a canopy get a ghost as well (not those on shelves or other buildings).</CG_ItemGhosts_Desc>
+  <CG_Alpha>See-through: {0}</CG_Alpha>
+  <CG_Alpha_Desc>How much of what stands under a tree (pawns, weapons, items, corpses) shows through its canopy, the same under any number of trees. 0% makes canopies solid; 100% leaves trees fully below pawns.</CG_Alpha_Desc>
   <CG_HideBetterTreesButton>Hide Better Trees' transparency button</CG_HideBetterTreesButton>
   <CG_HideBetterTreesButton_Desc>Removes Better Trees' cursor-transparency button from the bottom-right controls. Its hotkey still works.</CG_HideBetterTreesButton_Desc>
 </LanguageData>

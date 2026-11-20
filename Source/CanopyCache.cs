@@ -6,8 +6,9 @@ using Verse;
 namespace CanopyGhost
 {
     /// <summary>
-    /// Caches per pawn (or corpse) whether a tree drawn above pawns overlaps its cell.
-    /// Rechecked when the pawn changes cell or after a short interval (trees grow or get cut).
+    /// Caches per pawn whether a canopy tree overlaps the area it is drawn in (body, at least a humanlike's
+    /// size, plus room for a held weapon or carried thing). Rechecked when the pawn changes cell or after a short
+    /// interval (trees grow or get cut).
     /// </summary>
     public static class CanopyCache
     {
@@ -22,39 +23,38 @@ namespace CanopyGhost
         private const int ScanX = 4;
         private const int ScanBelow = 6;
         private const int ScanAbove = 1;
-        // Tree textures have empty margins; shrink the quad so bare corners do not count.
-        private const float QuadShrink = 0.8f;
-        private const float PawnHalfWidth = 0.35f;
-        private const float PawnHalfHeight = 0.45f;
         private const float PawnCenterRaise = 0.2f;
+        private const float MinPawnDrawSize = 1.5f;
+        private const float HeldMargin = 0.4f;
+        // Tree textures have empty margins; TreeQuad leaves them out.
+        private const float QuadShrink = 0.8f;
 
         private static readonly Dictionary<int, Entry> entries = new Dictionary<int, Entry>();
 
-        /// <param name="anchor">The spawned thing standing for the pawn: the pawn itself, or its corpse.</param>
-        public static bool IsUnderCanopy(Thing anchor)
+        public static bool UnderCanopy(Pawn pawn)
         {
-            IntVec3 cell = anchor.Position;
+            IntVec3 cell = pawn.Position;
             int frame = Time.frameCount;
-            if (entries.TryGetValue(anchor.thingIDNumber, out var e) && e.cell == cell && frame - e.frame < RefreshFrames)
+            if (entries.TryGetValue(pawn.thingIDNumber, out var e) && e.cell == cell && frame - e.frame < RefreshFrames)
                 return e.covered;
             if (entries.Count > 4096)
                 entries.Clear();
-            bool covered = Scan(anchor.Map, cell);
-            entries[anchor.thingIDNumber] = new Entry { cell = cell, frame = frame, covered = covered };
+            bool covered = Scan(pawn, cell);
+            entries[pawn.thingIDNumber] = new Entry { cell = cell, frame = frame, covered = covered };
             return covered;
         }
 
-        private static bool Scan(Map map, IntVec3 cell)
+        private static bool Scan(Pawn pawn, IntVec3 cell)
         {
-            float pMinX = cell.x + 0.5f - PawnHalfWidth;
-            float pMaxX = cell.x + 0.5f + PawnHalfWidth;
-            float pCenterZ = cell.z + 0.5f + PawnCenterRaise;
-            float pMinZ = pCenterZ - PawnHalfHeight;
-            float pMaxZ = pCenterZ + PawnHalfHeight;
-
-            for (int z = cell.z - ScanBelow; z <= cell.z + ScanAbove; z++)
+            Vector2 size = pawn.Drawer?.renderer?.BodyGraphic?.drawSize ?? Vector2.one;
+            float half = (Mathf.Max(MinPawnDrawSize, size.x, size.y) + HeldMargin) * 0.5f;
+            float px = cell.x + 0.5f;
+            float pz = cell.z + 0.5f + PawnCenterRaise;
+            Map map = pawn.Map;
+            int reach = Mathf.CeilToInt(half);
+            for (int z = cell.z - ScanBelow - reach; z <= cell.z + ScanAbove + reach; z++)
             {
-                for (int x = cell.x - ScanX; x <= cell.x + ScanX; x++)
+                for (int x = cell.x - ScanX - reach; x <= cell.x + ScanX + reach; x++)
                 {
                     var c = new IntVec3(x, 0, z);
                     if (!c.InBounds(map))
@@ -64,13 +64,20 @@ namespace CanopyGhost
                     {
                         if (!(things[i] is Plant plant) || !IsCanopyTree(plant.def))
                             continue;
-                        TreeQuad(plant, out float cx, out float cz, out float half);
-                        if (cx - half < pMaxX && cx + half > pMinX && cz - half < pMaxZ && cz + half > pMinZ)
+                        FullQuad(plant, out float cx, out float cz, out float th);
+                        if (cx - th < px + half && cx + th > px - half && cz - th < pz + half && cz + th > pz - half)
                             return true;
                     }
                 }
             }
             return false;
+        }
+
+        /// <summary>The whole printed square of a canopy tree, texture margins included.</summary>
+        public static void FullQuad(Plant plant, out float cx, out float cz, out float half)
+        {
+            TreeQuad(plant, out cx, out cz, out half);
+            half /= QuadShrink;
         }
 
         /// <summary>
@@ -86,11 +93,7 @@ namespace CanopyGhost
             cz = Mathf.Max(pos.z + 0.5f, pos.z + visual * 0.5f);
         }
 
-        /// <summary>Trees that some mod (e.g. Better Trees) draws above pawns.</summary>
-        public static bool IsCanopyTree(ThingDef def)
-        {
-            return def.plant != null && def.plant.IsTree && def.plant.maxMeshCount == 1
-                && def.graphicData != null && def.altitudeLayer > AltitudeLayer.Pawn;
-        }
+        /// <summary>Trees that some mod (e.g. Better Trees) drew above pawns, now under TreeOverlay.</summary>
+        public static bool IsCanopyTree(ThingDef def) => TreeOverlay.IsCanopyTree(def);
     }
 }

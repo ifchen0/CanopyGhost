@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-  <CG_Alpha>透視不透明度：{0}</CG_Alpha>
-  <CG_Alpha_Desc>樹冠下的角色透出來的程度。0%為關閉。</CG_Alpha_Desc>
-  <CG_IncludeAnimals>動物與機械體也顯示</CG_IncludeAnimals>
-  <CG_IncludeAnimals_Desc>關閉時只有人形角色在樹下會透出。</CG_IncludeAnimals_Desc>
-  <CG_ItemGhosts>樹下的物品和屍體也顯示</CG_ItemGhosts>
-  <CG_ItemGhosts_Desc>樹冠下地上的物品和屍體也會透出（架子等建築上的不算）。</CG_ItemGhosts_Desc>
+  <CG_Alpha>透視程度：{0}</CG_Alpha>
+  <CG_Alpha_Desc>樹下的東西（角色、武器、物品、屍體）透過樹冠顯示的程度，不論被幾層樹冠蓋住都一樣。0%為樹冠不透明；100%為樹木完全在角色下方。</CG_Alpha_Desc>
   <CG_HideBetterTreesButton>隱藏Better Trees的透明按鈕</CG_HideBetterTreesButton>
   <CG_HideBetterTreesButton_Desc>移除右下角Better Trees的游標透明按鈕。快捷鍵仍可使用。</CG_HideBetterTreesButton_Desc>
 </LanguageData>
