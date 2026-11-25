@@ -6,6 +6,4 @@
   <CG_Resolution_Desc>透視圖層相對於螢幕的解析度。越低顯示卡負擔越小，透出東西處的樹冠會稍微變軟。只有視野內有東西在樹下時才會繪製，在密林中大戰時負擔最大。</CG_Resolution_Desc>
   <CG_Refresh>透視圖層更新：強風時每{0}幀</CG_Refresh>
   <CG_Refresh_Desc>樹木擺動多少後重畫透視圖層，以正常速度、強風下的幀數計算。微風時重畫得較少、遊戲加速時較多，暫停或關閉植物擺動時不重畫。越高顯示卡負擔越小，樹冠可能稍微跟不上擺動的樹。鏡頭縮放、角色移出範圍和樹木變化時仍會立即重畫。</CG_Refresh_Desc>
-  <CG_HideBetterTreesButton>隱藏Better Trees的透明按鈕</CG_HideBetterTreesButton>
-  <CG_HideBetterTreesButton_Desc>移除右下角Better Trees的游標透明按鈕。快捷鍵仍可使用。</CG_HideBetterTreesButton_Desc>
 </LanguageData>
