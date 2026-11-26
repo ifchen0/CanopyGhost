@@ -9,10 +9,11 @@
 
 An add-on for Better Trees. With its "Render trees over colonists" option on, a dense forest hides everyone in it; this mod makes the canopy translucent wherever something stands under it, so pawns, their weapons and carried things, items and corpses show through the leaves, fights and animations included.
 
+Replaces all of Better Trees' own see-through effects: while this mod is loaded, Better Trees' transparency button, hotkey and modes (cursor transparency, pawn passthrough, tree ghosting) are switched off. Unsubscribe this mod if you prefer Better Trees' built-in ones.
+
 Notes
 - Works with any mod that draws trees over pawns; with vanilla tree layering it does nothing. Better Trees is not required.
 - See-through amount, layer resolution and refresh can be set in the mod settings.
-- Optional: hide Better Trees' cursor-transparency button (its hotkey keeps working).
 - Safe to add to or remove from an existing save.</description>
   <modDependencies>
     <li><packageId>brrainz.harmony</packageId><displayName>Harmony</displayName><steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl></li>

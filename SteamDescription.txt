@@ -1,5 +1,7 @@
 An add-on for [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3539609975]Better Trees[/url]. With its "Render trees over colonists" option on, a dense forest hides everyone in it; this mod makes the canopy translucent wherever something stands under it, so you can still see who is where and what they are doing.
 
+[b]Replaces all of Better Trees' own see-through effects:[/b] while this mod is loaded, Better Trees' transparency button, hotkey and modes (cursor transparency, pawn passthrough, tree ghosting) are switched off. Unsubscribe this mod if you prefer Better Trees' built-in ones.
+
 [h2]What it does[/h2][list]
 [*]Pawns, the weapons in their hands, whatever they carry, items and corpses under a canopy show through it (40% by default), the same under one tree or many.
 [*]Everything shows as it really is: fights, Melee Animation duels, crawling, aiming, hauling.
@@ -14,7 +16,7 @@ An add-on for [url=https://steamcommunity.com/sharedfiles/filedetails/?id=353960
 
 [h2]Notes[/h2][list]
 [*]Works with any mod that draws trees over pawns: it moves those trees back below pawns and lays a translucent copy of the canopy on top. With vanilla tree layering it does nothing. Better Trees is not required.
-[*]Better Trees' own transparency toggle (bottom-right button and hotkey) is turned off while this mod is active: its modes clash with the canopy layer, which replaces them.
+[*]Better Trees' transparency modes clash with the canopy layer, so they are turned off for the session only; Better Trees' saved setting is left untouched and comes back once this mod is removed.
 [*]Bullets and effects over trees with nothing under them show as in vanilla, on top of the leaves.
 [*]Cost: well under 1 ms per frame in our tests, even in a 73-pawn battle inside a dense forest. See the chart in the gallery.
 [*]Tested on RimWorld 1.7.
